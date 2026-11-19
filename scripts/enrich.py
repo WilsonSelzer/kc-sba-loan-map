@@ -134,9 +134,14 @@ def scan_site(url):
     return out
 
 
+RDAP = {"com": "https://rdap.verisign.com/com/v1/domain/", "net": "https://rdap.verisign.com/net/v1/domain/",
+        "org": "https://rdap.publicinterestregistry.org/rdap/domain/"}
+
+
 def rdap_year(dom):
+    base = RDAP.get(dom.rsplit(".", 1)[-1], "https://rdap.org/domain/")
     try:
-        r = requests.get(f"https://rdap.org/domain/{dom}", headers=UA, timeout=12)
+        r = requests.get(base + dom, headers=UA, timeout=12)
         if r.status_code == 429:
             time.sleep(5)
             return "retry"
@@ -234,14 +239,25 @@ def main():
                 ex.shutdown(cancel_futures=True)
                 break
 
-    # 2. domain registration year (permanent once found)
+    json.dump(cache, open(CACHE_PATH, "w"), separators=(",", ":"))          # save progress before the slower steps
+
+    # 2. domain registration year (permanent once found), capped at 30 minutes per run
     todo = [d for d in targets if d not in cache["domains"]]
     log(f"{len(todo)} domains need a registration year")
+    rstart = time.time()
     with cf.ThreadPoolExecutor(max_workers=6) as ex:
-        for d, y in zip(todo, ex.map(rdap_year, todo)):
-            if y == "retry":
-                continue
-            cache["domains"][d] = y
+        futs = {ex.submit(rdap_year, d): d for d in todo}
+        for f in cf.as_completed(futs):
+            y = f.result()
+            if y != "retry":
+                cache["domains"][futs[f]] = y
+            if len(cache["domains"]) % 500 == 0:
+                log(f"domain years: {len(cache['domains'])}")
+            if time.time() - rstart > 30 * 60:
+                log("domain lookup time limit reached; the rest will be looked up next run")
+                ex.shutdown(cancel_futures=True)
+                break
+    json.dump(cache, open(CACHE_PATH, "w"), separators=(",", ":"))
 
     # 3. Form 5500 (refresh at most every 60 days)
     f = cache.get("f5500", {})
