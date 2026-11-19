@@ -12,7 +12,7 @@ Every SBA 7(a) and 504 loan to a Kansas City metro business since FY2020, on one
 
 ## How it runs
 1. A GitHub Actions job (`.github/workflows/refresh.yml`) runs on the 5th of every month.
-2. `scripts/pipeline.py` asks SBA's open-data API whether a new quarterly file is out. If not, it logs the check and stops.
+2. `scripts/pipeline.py` checks SBA's dataset page for a newer quarterly file. If not, it logs the check and stops.
 3. If there is, it downloads the 7(a) and 504 files, keeps KC-metro loans, places each at its ZIP code, and compares against the last snapshot.
 4. It commits the new `data/*.json`, and GitHub Pages serves the updated map.
 

@@ -9,7 +9,7 @@ Usage:
   python scripts/pipeline.py                      # fetch from data.sba.gov
   python scripts/pipeline.py --local 7a.csv 504.csv --asof 2026-09-30
 """
-import argparse, csv, hashlib, io, json, os, re, sys, urllib.request
+import argparse, hashlib, io, json, os, re, urllib.parse, urllib.request
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -17,7 +17,7 @@ import zipcodes
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
-CKAN = "https://data.sba.gov/api/3/action/package_show?id=7-a-504-foia"
+DATASET_PAGE = "https://data.sba.gov/dataset/7a-504-foia"
 
 KC_COUNTIES = {
     "MO": ["JACKSON", "CLAY", "PLATTE", "CASS", "CLINTON", "LAFAYETTE", "RAY", "BATES", "CALDWELL"],
@@ -40,23 +40,21 @@ def log(msg):
 
 
 def find_sources():
-    """Ask SBA's open-data API for the current 7(a) FY2020+ and 504 FY2010+ files."""
-    req = urllib.request.Request(CKAN, headers={"User-Agent": "kc-sba-loan-map"})
+    """Read SBA's dataset page and pick out the current 7(a) FY2020+ and 504 FY2010+ CSV links."""
+    req = urllib.request.Request(DATASET_PAGE, headers={"User-Agent": "kc-sba-loan-map"})
     with urllib.request.urlopen(req, timeout=60) as r:
-        pkg = json.load(r)["result"]
-    found = {}
-    for res in pkg["resources"]:
-        name = res.get("name", "")
-        m = re.search(r"as\s*of\s*(\d{6})", name.replace("_", " "), re.I)
-        if "7(a)" in name and "2020" in name:
-            found["7a"] = (res["url"], m.group(1) if m else None)
-        elif "504" in name and "2010" in name:
-            found["504"] = (res["url"], m.group(1) if m else None)
-    if "7a" not in found or "504" not in found:
-        raise RuntimeError(f"Could not find both files on SBA's site: {list(found)}")
-    yymmdd = found["7a"][1]
-    asof = datetime.strptime(yymmdd, "%y%m%d").date().isoformat() if yymmdd else None
-    return found["7a"][0], found["504"][0], asof
+        html = r.read().decode("utf-8", "replace")
+    def pick(pattern):
+        hits = re.findall(r'href="([^"]*' + pattern + r')"', html)
+        if not hits:
+            raise RuntimeError(f"No link matching {pattern} on {DATASET_PAGE}")
+        url = urllib.parse.urljoin(DATASET_PAGE, hits[0])
+        return url, re.search(r"asof_(\d{6})", url).group(1)
+    url7, d7 = pick(r"FOIA_7a_FY2020_Present_asof_\d{6}\.csv")
+    url5, _ = pick(r"FOIA_504_FY2010_Present_asof_\d{6}\.csv")
+    asof = datetime.strptime(d7, "%y%m%d").date().isoformat()
+    log(f"SBA files as of {asof}")
+    return url7, url5, asof
 
 
 def download(url):
