@@ -66,6 +66,10 @@ select { font: inherit; color: var(--ink); background: var(--panel); border: 1px
 .flag.lt { background: var(--gold-soft); color: var(--gold); }
 .flag.sold { background: var(--accent-soft); color: var(--accent); }
 .flag.rep { background: #eaf1fb; color: var(--base); }
+.flag.new { background: #e6f4ea; color: #1e7b3a; }
+.since { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 2px 0 6px; }
+.since select { font: inherit; font-size: 13px; padding: 3px 6px; border: 1px solid #ccc; background: #fff; }
+.bar .fill.green { background: #1e7b3a; }
 .flag:not(.lt):not(.sold):not(.rep) { background: var(--soft); color: var(--muted); }
 .mini { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
 a { color: var(--base); }
@@ -142,6 +146,7 @@ th { white-space: nowrap; }
       </div>
       <label class="toggle" for="sbaonly"><input type="checkbox" id="sbaonly"> SBA borrowers only</label>
       <label class="toggle" for="lt"><input type="checkbox" id="lt"> Long-time owners only <span class="mini">(first SBA loan 10+ years ago)</span></label>
+      <label class="since" for="since" id="since-wrap" hidden>Added to the map <select id="since"><option value="">any time</option></select></label>
       <div id="list"></div>
     </div>
   </section>
@@ -155,6 +160,11 @@ th { white-space: nowrap; }
         <tbody id="market"></tbody>
       </table>
       <div class="mini" style="margin-top:6px">Click a category to see its targets.</div>
+    </div>
+    <div>
+      <h2>New businesses found each month</h2>
+      <div class="mini" style="margin:-4px 0 8px">Independent businesses that first appeared in that month's data pull.</div>
+      <div class="bars" id="newbars"></div>
     </div>
     <div>
       <h2>Businesses sold per year</h2>
@@ -196,7 +206,7 @@ const key = L.control({ position: "bottomleft" });
 key.onAdd = () => { const d = L.DomUtil.create("div", "map-key"); d.id = "key"; return d; };
 key.addTo(map);
 
-let loans = [], places = [], profiles = {}, biz = [], state = { tab: "find", cat: "hvac", radius: 25, lt: false, sba: false }, platform = L.latLng(38.9822, -94.6708);
+let loans = [], places = [], profiles = {}, biz = [], state = { tab: "find", cat: "hvac", radius: 25, lt: false, sba: false, since: "" }, hist = { releases: [] }, platform = L.latLng(38.9822, -94.6708);
 let markers = new Map(), shown = [], decor = [];
 
 const site = u => /^https?:\/\//i.test(u || "") ? u : "";
@@ -206,7 +216,11 @@ const links = b => { const q = encodeURIComponent(`${b.name} ${b.city} ${b.state
     <a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Maps</a>`; };
 const phone = v => { const d = String(v || "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, ""); return d.length === 10 ? `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}` : (v || ""); };
 const flags = b => (b.longtime ? '<span class="flag lt">Long-time owner</span>' : "") + (b.sold ? '<span class="flag sold">Sold before</span>' : "")
-  + (b.isSba && !b.longtime ? '<span class="flag rep">SBA borrower</span>' : "") + (b.locations > 1 ? `<span class="flag">${b.locations} locations</span>` : "");
+  + (b.isSba && !b.longtime ? '<span class="flag rep">SBA borrower</span>' : "") + (b.locations > 1 ? `<span class="flag">${b.locations} locations</span>` : "")
+  + (isNew(b) ? `<span class="flag new">New · ${monthName(b.added)}</span>` : "");
+const BASE = () => (hist.releases.find(r => r.baseline) || {}).date || "";
+const isNew = b => b.added && BASE() && b.added > BASE();
+const monthName = d => new Date(d + "T12:00:00").toLocaleString("en-US", { month: "short", year: "numeric" });
 const card = b => `<div class="pop"><div class="n">${esc(b.name)}</div>${flags(b)}
   <div style="margin-top:4px">${esc(b.street)}, ${esc(b.city)}, ${esc(b.state)} ${esc(b.zip)}</div>
   <dl>${b.phone ? `<dt>Phone</dt><dd>${esc(phone(b.phone))}</dd>` : ""}<dt>Type</dt><dd>${esc(b.industry)}</dd>
@@ -236,7 +250,7 @@ function buildBusinesses() {
     if (p.chain || (p.sba && dead.has(p.sba))) continue;
     const s = p.sba && sba.get(p.sba);
     const row = { key: "p" + out.length, pkey: p.pid, cat: p.cat, name: p.name, street: p.street, city: p.city, state: p.state, zip: p.zip,
-      lat: p.lat, lng: p.lng, industry: (t => t.charAt(0).toUpperCase() + t.slice(1))(p.category.replace(/_/g, " ").replace(/\bhvac\b/i, "HVAC")), phone: p.phone, website: p.website, locations: p.locations || 1, isSba: false };
+      lat: p.lat, lng: p.lng, industry: (t => t.charAt(0).toUpperCase() + t.slice(1))(p.category.replace(/_/g, " ").replace(/\bhvac\b/i, "HVAC")), phone: p.phone, website: p.website, locations: p.locations || 1, added: p.added || "", isSba: false };
     if (s) { Object.assign(row, { isSba: true, bkey: s.key, first: s.first, amount: s.amount, date: s.date, lender: s.lender, jobs: s.jobs,
       longtime: s.longtime, sold: s.sold, cat: row.cat }); sba.delete(p.sba); }
     out.push(row);
@@ -276,7 +290,7 @@ function renderFind() {
   pin.on("dragend", e => { platform = e.target.getLatLng(); $("city").value = "map"; renderFind(); });
   decor.push(pin, ring);
   shown = biz.filter(b => b.cat === state.cat).map(b => Object.assign(b, { dist: platform.distanceTo([b.lat, b.lng]) / 1609.34 }))
-    .filter(b => b.dist <= state.radius && (!state.lt || b.longtime) && (!state.sba || b.isSba)).sort((a, b) => a.dist - b.dist);
+    .filter(b => b.dist <= state.radius && (!state.lt || b.longtime) && (!state.sba || b.isSba) && (!state.since || (b.added && b.added >= state.since))).sort((a, b) => a.dist - b.dist);
   shown.filter(b => !b.isSba).forEach(b => dot(b, "#9aa3ae"));
   shown.filter(b => b.isSba).forEach(b => dot(b, b.longtime ? "#9a6b00" : "#1f5fbf"));
   $("r-count").textContent = shown.length;
@@ -361,6 +375,7 @@ async function exportExcel() {
       { header: "SBA lender", key: "lender", width: 30 },
       { header: "Jobs (SBA)", key: "jobs", width: 9 },
       { header: "Locations", key: "locs", width: 9 },
+      { header: "Added to map", key: "added", width: 12, style: { numFmt: "mmm yyyy" } },
       { header: "Look up", key: "google", width: 10 },
     ];
     for (const b of shown) {
@@ -373,7 +388,7 @@ async function exportExcel() {
         hiring: b.prof.hiring ? "Yes" : "", siteyr: b.prof.site_year || null,
         sba: b.isSba ? "Yes" : "", lt: b.longtime ? "Yes" : "", sold: b.sold ? "Yes" : "",
         first: b.isSba ? toDate(b.first) : null, amount: b.isSba ? b.amount : null, date: b.isSba ? toDate(b.date) : null,
-        lender: b.isSba ? b.lender : "", jobs: b.isSba ? b.jobs : null, locs: b.locations || 1,
+        lender: b.isSba ? b.lender : "", jobs: b.isSba ? b.jobs : null, locs: b.locations || 1, added: isNew(b) ? toDate(b.added) : null,
         google: { text: "Google", hyperlink: `https://www.google.com/search?q=${encodeURIComponent(`${b.name} ${b.city} ${b.state}`)}` },
       });
       ["website", "google"].forEach(k => { const c = row.getCell(k); if (c.value) c.font = { color: { argb: "FF1F5FBF" }, underline: true }; });
@@ -409,7 +424,7 @@ async function exportExcel() {
       ["Category", cat.name],
       ["Platform location", where],
       ["Radius", `${state.radius} miles`],
-      ["Filters", [state.sba && "SBA borrowers only", state.lt && "Long-time owners only"].filter(Boolean).join(", ") || "None"],
+      ["Filters", [state.sba && "SBA borrowers only", state.lt && "Long-time owners only", state.since && `Added to the map since ${monthName(state.since)}`].filter(Boolean).join(", ") || "None"],
       ["Businesses", shown.length],
       ["Exported", new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })],
       ["SBA data as of", $("updated").dataset.asof || ""],
@@ -442,9 +457,10 @@ async function exportExcel() {
 }
 function alertBox(msg) { $("list").insertAdjacentHTML("afterbegin", `<div class="mini" style="color:#b42318">${esc(msg)}. Check your connection and try again.</div>`); }
 
-Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/meta.json", "data/places.json", "data/profiles.json"].map(u =>
+Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/meta.json", "data/places.json", "data/profiles.json", "data/place_history.json"].map(u =>
   fetch(u).then(r => r.ok ? r.json() : []).catch(() => [])))
-.then(([L1, ch, sum, meta, P, PR]) => {
+.then(([L1, ch, sum, meta, P, PR, H]) => {
+  hist = H && H.releases ? H : { releases: [] };
   loans = L1; places = Array.isArray(P) ? P : []; profiles = PR && !Array.isArray(PR) ? PR : {}; biz = buildBusinesses();
 
   $("cats").innerHTML = GROUPS.map(([g, cs]) => `<div class="group-label">${esc(g)}</div><div class="chips">${cs.map(([id, name]) =>
@@ -460,6 +476,17 @@ Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/
     renderFind(); map.flyTo(platform, state.radius > 25 ? 9 : 10, { duration: .5 }); }));
   $("lt").addEventListener("change", () => { state.lt = $("lt").checked; renderFind(); });
   $("sbaonly").addEventListener("change", () => { state.sba = $("sbaonly").checked; renderFind(); });
+  const pulls = hist.releases.filter(r => !r.baseline).map(r => r.date).reverse();
+  if (pulls.length) {
+    $("since-wrap").hidden = false;
+    $("since").innerHTML += pulls.map(d => `<option value="${d}">since ${monthName(d)}</option>`).join("");
+    $("since").addEventListener("change", () => { state.since = $("since").value; renderFind(); });
+  }
+  const indep = biz.filter(b => b.added);
+  const months = hist.releases.filter(r => !r.baseline).map(r => ({ d: r.date, n: indep.filter(b => b.added === r.date).length }));
+  const mx = Math.max(1, ...months.map(m => m.n));
+  $("newbars").innerHTML = months.length ? months.map(m => `<div class="bar"><span class="y">${monthName(m.d).replace(" 20", " '")}</span><span class="track"><span class="fill green" style="width:${(m.n / mx * 100).toFixed(1)}%"></span></span><span class="v">${m.n.toLocaleString()} new</span></div>`).join("")
+    : '<div class="mini">History starts with the next monthly pull.</div>';
   $("xlsx").addEventListener("click", exportExcel);
   document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => setTab(b.id.slice(2))));
 

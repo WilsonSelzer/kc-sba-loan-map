@@ -4,6 +4,7 @@ then match each one to SBA borrowers so the map can show businesses with and wit
 Runs in GitHub Actions after pipeline.py. Writes:
   data/places.json             businesses in the roll-up categories (name, location, phone, website, SBA match)
   data/place_categories.json   counts of every Overture category in the area, for tuning the mapping
+  data/place_history.json      the Overture release each business first appeared in, so the map can filter by date
 """
 import json, math, os, re, subprocess, sys
 from collections import Counter
@@ -12,6 +13,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
 BBOX = "-95.10,38.55,-94.05,39.45"          # KC metro: Leavenworth to Lee's Summit, Liberty to Paola
 RAW = os.path.join(ROOT, "kc_places.geojsonseq")
+HIST = os.path.join(DATA, "place_history.json")
 
 # Overture category -> roll-up category. Matched on whole category names first, then on keywords.
 EXCLUDE = ["pet_", "supplier", "wholesale", "school_district", "insurance_company", "dealer"]
@@ -89,9 +91,41 @@ def first(v, *path):
     return v
 
 
-def download():
-    log(f"downloading Overture places for bbox {BBOX}")
-    subprocess.run(["overturemaps", "download", f"--bbox={BBOX}", "-f", "geojsonseq", "--type=place", "-o", RAW], check=True)
+def releases():
+    """All Overture releases still published, oldest first, and the latest one."""
+    from overturemaps.core import get_available_releases
+    allr, latest = get_available_releases()
+    return sorted(allr), latest
+
+
+def download(release=None, out=None):
+    cmd = ["overturemaps", "download", f"--bbox={BBOX}", "-f", "geojsonseq", "--type=place", "-o", out or RAW]
+    if release:
+        cmd += ["-r", release]
+    log(f"downloading Overture places {release or 'latest'} for bbox {BBOX}")
+    subprocess.run(cmd, check=True)
+
+
+def load_history():
+    if os.path.exists(HIST):
+        return json.load(open(HIST))
+    return {"releases": [], "first": {}}
+
+
+def record(hist, release, pids):
+    """Remember the first release each listing appeared in. The first release ever tracked is the baseline."""
+    day = release.split(".")[0]
+    if any(r["release"] == release for r in hist["releases"]):
+        return
+    new = 0
+    for pid in pids:
+        if pid not in hist["first"]:
+            hist["first"][pid] = day
+            new += 1
+    hist["releases"].append({"release": release, "date": day, "listings": len(pids), "new": new,
+                             "baseline": not hist["releases"]})
+    hist["releases"].sort(key=lambda r: r["date"])
+    log(f"history: {release} has {len(pids)} listings, {new} new")
 
 
 def parse():
@@ -172,9 +206,17 @@ def match_sba(places):
 
 
 def main():
+    try:
+        _, release = releases()
+    except Exception as e:                     # catalog unreachable: fall back to the latest download, dated today
+        log(f"release list unavailable ({e}); using latest")
+        import datetime
+        release = datetime.date.today().isoformat() + ".latest"
     if "--skip-download" not in sys.argv:
-        download()
+        download(None if release.endswith(".latest") else release)
     places, allcats = parse()
+    hist = load_history()
+    record(hist, release, [p["pid"] for p in places])
     # drop chains and franchises with many KC locations: PE targets are independents
     brand_counts = Counter(p["brand"] or norm(p["name"]) for p in places)
     for p in places:
@@ -185,10 +227,13 @@ def main():
     merged = {}
     for p in sorted(places, key=lambda p: (-bool(p["phone"]), -bool(p["website"]), -p["conf"])):
         k = (p["cat"], norm(p["name"]))
+        seen = hist["first"].get(p["pid"], release.split(".")[0])
         if k in merged:
             merged[k]["locations"] += 1
+            merged[k]["added"] = min(merged[k]["added"], seen)   # a business is as old as its oldest listing
         else:
             p["locations"] = 1
+            p["added"] = seen
             merged[k] = p
     places = list(merged.values())
     for p in places:
@@ -198,6 +243,7 @@ def main():
     by_cat = Counter(p["cat"] for p in places if not p["chain"])
     log("independents by category: " + ", ".join(f"{k} {v}" for k, v in by_cat.most_common()))
     json.dump(places, open(os.path.join(DATA, "places.json"), "w"), separators=(",", ":"))
+    json.dump(hist, open(HIST, "w"), separators=(",", ":"))
     json.dump(dict(allcats.most_common(400)), open(os.path.join(DATA, "place_categories.json"), "w"), indent=0)
     if os.path.exists(RAW):
         os.remove(RAW)
