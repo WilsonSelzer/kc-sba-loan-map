@@ -62,6 +62,8 @@ select { font: inherit; color: var(--ink); background: var(--panel); border: 1px
 .flag { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 3px; margin-right: 4px; }
 .flag.lt { background: var(--gold-soft); color: var(--gold); }
 .flag.sold { background: var(--accent-soft); color: var(--accent); }
+.flag.rep { background: #eaf1fb; color: var(--base); }
+.flag:not(.lt):not(.sold):not(.rep) { background: var(--soft); color: var(--muted); }
 .mini { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
 a { color: var(--base); }
 .news { background: var(--soft); border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: 4px; padding: 10px 12px; font-size: 13px; line-height: 1.45; }
@@ -101,7 +103,7 @@ th { white-space: nowrap; }
 <aside>
   <div class="head">
     <h1>KC Roll-Up Target Finder</h1>
-    <p class="lede">Every Kansas City small business that has taken an SBA loan since 2010, as a list of add-on targets.</p>
+    <p class="lede">Every independent Kansas City business in 13 roll-up categories, with phone, website and SBA loan history where it exists.</p>
   </div>
   <nav role="tablist" aria-label="Views">
     <button role="tab" id="t-find" aria-controls="p-find" aria-selected="true">Find targets</button>
@@ -130,6 +132,7 @@ th { white-space: nowrap; }
         <div><b id="r-count">0</b> <span id="r-label">targets</span></div>
         <button class="btn" id="csv" type="button">Export CSV</button>
       </div>
+      <label class="toggle" for="sbaonly"><input type="checkbox" id="sbaonly"> SBA borrowers only</label>
       <label class="toggle" for="lt"><input type="checkbox" id="lt"> Long-time owners only <span class="mini">(first SBA loan 10+ years ago)</span></label>
       <div id="list"></div>
     </div>
@@ -140,7 +143,7 @@ th { white-space: nowrap; }
     <div>
       <h2>Roll-up categories in KC</h2>
       <table>
-        <thead><tr><th>Category</th><th title="Businesses with an SBA loan since 2010">Businesses</th><th title="First SBA loan 10+ years ago">Long-time</th><th title="Bought with an SBA loan since 2018">Sold</th><th></th></tr></thead>
+        <thead><tr><th>Category</th><th title="Independent businesses (chains excluded)">Businesses</th><th title="Took an SBA loan since 2010">SBA</th><th title="First SBA loan 10+ years ago">Long-time</th><th title="Bought with an SBA loan since 2018">Sold</th><th></th></tr></thead>
         <tbody id="market"></tbody>
       </table>
       <div class="mini" style="margin-top:6px">Click a category to see its targets.</div>
@@ -152,7 +155,7 @@ th { white-space: nowrap; }
     </div>
   </section>
 
-  <div class="foot"><span id="updated"></span> Source: SBA 7(a) &amp; 504 public loan data, placed by ZIP code, so distances are approximate. <a href="https://github.com/WilsonSelzer/kc-sba-loan-map">How it works</a></div>
+  <div class="foot"><span id="updated"></span> Sources: business listings from <a href="https://overturemaps.org">Overture Maps</a> (CDLA-Permissive-2.0); loan history from SBA 7(a) &amp; 504 public data. Chains and franchises are excluded. <a href="https://github.com/WilsonSelzer/kc-sba-loan-map">How it works</a></div>
 </aside>
 <div id="map" role="region" aria-label="Map of target businesses"></div>
 
@@ -185,21 +188,25 @@ const key = L.control({ position: "bottomleft" });
 key.onAdd = () => { const d = L.DomUtil.create("div", "map-key"); d.id = "key"; return d; };
 key.addTo(map);
 
-let loans = [], biz = [], state = { tab: "find", cat: "hvac", radius: 25, lt: false }, platform = L.latLng(38.9822, -94.6708);
+let loans = [], places = [], biz = [], state = { tab: "find", cat: "hvac", radius: 25, lt: false, sba: false }, platform = L.latLng(38.9822, -94.6708);
 let markers = new Map(), shown = [], decor = [];
 
+const site = u => /^https?:\/\//i.test(u || "") ? u : "";
 const links = b => { const q = encodeURIComponent(`${b.name} ${b.city} ${b.state}`);
-  return `<a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">Google</a>
+  return `${site(b.website) ? `<a href="${esc(site(b.website))}" target="_blank" rel="noopener">Website</a>` : ""}<a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">Google</a>
     <a href="https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(b.name)}" target="_blank" rel="noopener">LinkedIn</a>
     <a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Maps</a>`; };
-const flags = b => (b.longtime ? '<span class="flag lt">Long-time owner</span>' : "") + (b.sold ? '<span class="flag sold">Sold before</span>' : "");
+const phone = v => { const d = String(v || "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, ""); return d.length === 10 ? `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}` : (v || ""); };
+const flags = b => (b.longtime ? '<span class="flag lt">Long-time owner</span>' : "") + (b.sold ? '<span class="flag sold">Sold before</span>' : "")
+  + (b.isSba && !b.longtime ? '<span class="flag rep">SBA borrower</span>' : "") + (b.locations > 1 ? `<span class="flag">${b.locations} locations</span>` : "");
 const card = b => `<div class="pop"><div class="n">${esc(b.name)}</div>${flags(b)}
   <div style="margin-top:4px">${esc(b.street)}, ${esc(b.city)}, ${esc(b.state)} ${esc(b.zip)}</div>
-  <dl><dt>Industry</dt><dd>${esc(b.industry)}</dd><dt>First SBA loan</dt><dd>${esc(b.first)}</dd>
-  <dt>Latest loan</dt><dd>${money(b.amount)} (${esc((b.date || "").slice(0, 4))})</dd><dt>Lender</dt><dd>${esc(b.lender)}</dd><dt>Jobs</dt><dd>${b.jobs}</dd></dl>
+  <dl>${b.phone ? `<dt>Phone</dt><dd>${esc(phone(b.phone))}</dd>` : ""}<dt>Type</dt><dd>${esc(b.industry)}</dd>
+  ${b.isSba ? `<dt>First SBA loan</dt><dd>${esc(b.first)}</dd><dt>Latest loan</dt><dd>${money(b.amount)} (${esc((b.date || "").slice(0, 4))})</dd><dt>Lender</dt><dd>${esc(b.lender)}</dd><dt>Jobs</dt><dd>${b.jobs}</dd>` : `<dt>SBA loans</dt><dd>None on record</dd>`}</dl>
   <div class="links">${links(b)}</div></div>`;
 
-/* One row per business: latest loan, plus whether it was ever bought with an SBA loan. Charged-off businesses dropped. */
+/* One row per business. Start from SBA borrowers (grouped loans), then add Overture listings: a listing that matches a borrower
+   adds its phone and website; the rest are businesses with no SBA loan. Charged-off borrowers are dropped. */
 function buildBusinesses() {
   const by = new Map();
   for (const l of loans) {
@@ -207,12 +214,24 @@ function buildBusinesses() {
     const b = by.get(l.bkey) || { key: l.bkey, cat: cat.id, loans: [] };
     b.loans.push(l); by.set(l.bkey, b);
   }
-  return [...by.values()].filter(b => !b.loans.some(l => l.status === "Charged off")).map(b => {
+  const dead = new Set([...by.values()].filter(b => b.loans.some(l => l.status === "Charged off")).map(b => b.key));
+  const sba = new Map([...by.values()].filter(b => !dead.has(b.key)).map(b => {
     const x = b.loans.reduce((a, l) => (l.date || "") > (a.date || "") ? l : a);
-    return { key: b.key, cat: b.cat, name: x.name, street: x.street, city: x.city, state: x.state, zip: x.zip, lat: x.lat, lng: x.lng,
+    return [b.key, { key: b.key, cat: b.cat, name: x.name, street: x.street, city: x.city, state: x.state, zip: x.zip, lat: x.lat, lng: x.lng,
       industry: x.industry, first: x.first, amount: x.amount, date: x.date, lender: x.lender, jobs: x.jobs, longtime: x.longtime,
-      sold: b.loans.some(l => l.age === SOLD), nloans: b.loans.length };
-  });
+      sold: b.loans.some(l => l.age === SOLD), isSba: true, phone: "", website: "", locations: 1 }];
+  }));
+  const out = [];
+  for (const p of places) {
+    if (p.chain || (p.sba && dead.has(p.sba))) continue;
+    const s = p.sba && sba.get(p.sba);
+    const row = { key: "p" + out.length, cat: p.cat, name: p.name, street: p.street, city: p.city, state: p.state, zip: p.zip,
+      lat: p.lat, lng: p.lng, industry: p.category.replace(/_/g, " "), phone: p.phone, website: p.website, locations: p.locations || 1, isSba: false };
+    if (s) { Object.assign(row, { isSba: true, first: s.first, amount: s.amount, date: s.date, lender: s.lender, jobs: s.jobs,
+      longtime: s.longtime, sold: s.sold, cat: row.cat }); sba.delete(p.sba); }
+    out.push(row);
+  }
+  return out.concat([...sba.values()]);
 }
 
 function clear() { layer.clearLayers(); markers.clear(); decor.forEach(d => map.removeLayer(d)); decor = []; }
@@ -227,16 +246,17 @@ function renderFind() {
   decor.push(L.marker(platform, { icon: L.divIcon({ className: "", html: '<div class="platform-icon">Your platform</div>', iconAnchor: [44, 12] }), keyboard: false }).addTo(map));
   decor.push(L.circle(platform, { radius: state.radius * 1609.34, color: "#15202e", weight: 1.5, dashArray: "5 5", fillOpacity: .03, interactive: false }).addTo(map));
   shown = biz.filter(b => b.cat === state.cat).map(b => Object.assign(b, { dist: platform.distanceTo([b.lat, b.lng]) / 1609.34 }))
-    .filter(b => b.dist <= state.radius && (!state.lt || b.longtime)).sort((a, b) => a.dist - b.dist);
-  shown.forEach(b => dot(b, b.longtime ? "#9a6b00" : "#1f5fbf"));
+    .filter(b => b.dist <= state.radius && (!state.lt || b.longtime) && (!state.sba || b.isSba)).sort((a, b) => a.dist - b.dist);
+  shown.filter(b => !b.isSba).forEach(b => dot(b, "#9aa3ae"));
+  shown.filter(b => b.isSba).forEach(b => dot(b, b.longtime ? "#9a6b00" : "#1f5fbf"));
   $("r-count").textContent = shown.length;
   $("r-label").textContent = `${cat.name} within ${state.radius} mi`;
-  $("key").innerHTML = '<span><i style="background:#9a6b00"></i>Long-time owner</span><span><i style="background:#1f5fbf"></i>Other</span>';
-  $("list").innerHTML = shown.length ? shown.map(b => `<div class="tgt">
+  $("key").innerHTML = '<span><i style="background:#9a6b00"></i>Long-time owner</span><span><i style="background:#1f5fbf"></i>SBA borrower</span><span><i style="background:#9aa3ae"></i>No SBA loan</span>';
+  $("list").innerHTML = shown.length ? shown.slice(0, 300).map(b => `<div class="tgt">
       <div class="top"><button class="nm" type="button" data-k="${b.key}">${esc(b.name)}</button><span class="dist">${b.dist.toFixed(1)} mi</span></div>
-      <div class="meta">${esc(b.city)} · SBA borrower since ${esc((b.first || "").slice(0, 4))} · ${b.jobs} jobs</div>
-      ${b.longtime || b.sold ? `<div>${flags(b)}</div>` : ""}
-      <div class="links">${links(b)}</div></div>`).join("")
+      <div class="meta">${esc(b.city)}${b.phone ? ` · ${esc(phone(b.phone))}` : ""}${b.isSba ? ` · SBA since ${esc((b.first || "").slice(0, 4))}` : ""}</div>
+      ${flags(b) ? `<div>${flags(b)}</div>` : ""}
+      <div class="links">${links(b)}</div></div>`).join("") + (shown.length > 300 ? `<div class="mini" style="padding-top:8px">Showing the closest 300. Export CSV for all ${shown.length.toLocaleString()}.</div>` : "")
     : `<div class="mini">None within ${state.radius} miles. Try a wider radius.</div>`;
   $("list").querySelectorAll(".nm").forEach(n => n.addEventListener("click", () => {
     const m = markers.get(n.dataset.k); map.flyTo(m.getLatLng(), 13, { duration: .5 }); setTimeout(() => m.openPopup(), 550); }));
@@ -244,9 +264,9 @@ function renderFind() {
 
 function renderMarket() {
   clear();
-  biz.filter(b => !b.sold).forEach(b => dot(b, "#1f5fbf"));
+  biz.filter(b => !b.sold).forEach(b => dot(b, b.isSba ? "#1f5fbf" : "#9aa3ae"));
   biz.filter(b => b.sold).forEach(b => dot(b, "#d9480f"));
-  $("key").innerHTML = '<span><i style="background:#d9480f"></i>Sold before</span><span><i style="background:#1f5fbf"></i>Other</span>';
+  $("key").innerHTML = '<span><i style="background:#d9480f"></i>Sold before</span><span><i style="background:#1f5fbf"></i>SBA borrower</span><span><i style="background:#9aa3ae"></i>No SBA loan</span>';
 }
 
 function setTab(t) {
@@ -264,19 +284,20 @@ function pickCat(id) {
 
 function exportCsv() {
   const cat = CATS.find(c => c.id === state.cat);
-  const cols = ["name","street","city","state","zip","industry","distance_mi","long_time_owner","sold_before","first_sba_loan","latest_loan","latest_loan_year","lender","jobs","google_search"];
+  const cols = ["name","street","city","state","zip","phone","website","type","distance_mi","sba_borrower","long_time_owner","sold_before","first_sba_loan","latest_loan","latest_loan_year","lender","jobs","locations","google_search"];
   const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const rows = shown.map(b => [b.name, b.street, b.city, b.state, b.zip, b.industry, b.dist.toFixed(1), b.longtime ? "Y" : "N", b.sold ? "Y" : "N",
-    b.first, b.amount, (b.date || "").slice(0, 4), b.lender, b.jobs, `https://www.google.com/search?q=${encodeURIComponent(`${b.name} ${b.city} ${b.state}`)}`].map(q).join(","));
+  const rows = shown.map(b => [b.name, b.street, b.city, b.state, b.zip, phone(b.phone), site(b.website), b.industry, b.dist.toFixed(1), b.isSba ? "Y" : "N",
+    b.longtime ? "Y" : "N", b.sold ? "Y" : "N", b.first, b.amount, (b.date || "").slice(0, 4), b.lender, b.jobs, b.locations, `https://www.google.com/search?q=${encodeURIComponent(`${b.name} ${b.city} ${b.state}`)}`].map(q).join(","));
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([[cols.join(","), ...rows].join("\n")], { type: "text/csv" }));
   a.download = `kc-${cat.id}-targets-${state.radius}mi.csv`;
   document.body.appendChild(a); a.click(); a.remove();
 }
 
-Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/meta.json"].map(u => fetch(u).then(r => r.json())))
-.then(([L1, ch, sum, meta]) => {
-  loans = L1; biz = buildBusinesses();
+Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/meta.json", "data/places.json"].map(u =>
+  fetch(u).then(r => r.ok ? r.json() : []).catch(() => [])))
+.then(([L1, ch, sum, meta, P]) => {
+  loans = L1; places = Array.isArray(P) ? P : []; biz = buildBusinesses();
 
   $("cats").innerHTML = GROUPS.map(([g, cs]) => `<div class="group-label">${esc(g)}</div><div class="chips">${cs.map(([id, name]) =>
     `<button class="chip" type="button" data-c="${id}" aria-pressed="${id === state.cat}">${esc(name)}</button>`).join("")}</div>`).join("");
@@ -290,14 +311,15 @@ Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/
     state.radius = +b.dataset.r; document.querySelectorAll("#radius button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
     renderFind(); map.flyTo(platform, state.radius > 25 ? 9 : 10, { duration: .5 }); }));
   $("lt").addEventListener("change", () => { state.lt = $("lt").checked; renderFind(); });
+  $("sbaonly").addEventListener("change", () => { state.sba = $("sbaonly").checked; renderFind(); });
   $("csv").addEventListener("click", exportCsv);
   document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => setTab(b.id.slice(2))));
 
   const soldNew = (ch.new_acquisitions || []).length;
   $("news").innerHTML = `<b>Latest SBA data (${esc(ch.asof)}):</b> ${ch.new_loans} new KC loans, and ${soldNew} businesses were bought with SBA financing.`;
   const stats = CATS.map(c => { const bs = biz.filter(b => b.cat === c.id);
-    return { c, n: bs.length, lt: bs.filter(b => b.longtime).length, sold: bs.filter(b => b.sold).length }; }).sort((a, b) => b.n - a.n);
-  $("market").innerHTML = stats.map(s => `<tr data-c="${s.c.id}" tabindex="0"><td>${esc(s.c.name)}</td><td>${s.n}</td><td>${s.lt}</td><td>${s.sold}</td><td><span class="go">View ›</span></td></tr>`).join("");
+    return { c, n: bs.length, sba: bs.filter(b => b.isSba).length, lt: bs.filter(b => b.longtime).length, sold: bs.filter(b => b.sold).length }; }).sort((a, b) => b.n - a.n);
+  $("market").innerHTML = stats.map(s => `<tr data-c="${s.c.id}" tabindex="0"><td>${esc(s.c.name)}</td><td>${s.n.toLocaleString()}</td><td>${s.sba}</td><td>${s.lt}</td><td>${s.sold}</td><td><span class="go">View ›</span></td></tr>`).join("");
   $("market").querySelectorAll("tr").forEach(tr => { tr.addEventListener("click", () => pickCat(tr.dataset.c));
     tr.addEventListener("keydown", e => { if (e.key === "Enter") pickCat(tr.dataset.c); }); });
   const yrs = sum.acquisitions.by_year, max = Math.max(...yrs.map(y => y.count));

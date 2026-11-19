@@ -32,6 +32,16 @@ CATEGORY_RULES = [
               "transmission", "brake", "muffler", "auto_glass", "smog_check", "auto_maintenance", "automotive_service"]),
     ("kids", ["child_care", "day_care", "daycare", "preschool", "childcare"]),
 ]
+FRANCHISES = ["ROTO ROOTER", "MR ROOTER", "BENJAMIN FRANKLIN", "ONE HOUR HEATING", "AIRE SERV", "MR ELECTRIC", "MISTER SPARKY",
+    "MOSQUITO JOE", "MOLLY MAID", "MERRY MAIDS", "CHEM DRY", "STANLEY STEEMER", "SERVICEMASTER", "SERVPRO", "TERMINIX", "ORKIN",
+    "TRULY NOLEN", "ASPEN DENTAL", "SMILE GENERATION", "BANFIELD", "VCA ", "MIDAS", "MEINEKE", "VALVOLINE", "TAKE 5", "JIFFY LUBE",
+    "CHRISTIAN BROTHERS", "GOODYEAR", "FIRESTONE", "PEP BOYS", "CAR X", "CARX", "TIRES PLUS", "BIG O TIRES", "DISCOUNT TIRE", "MAACO",
+    "CALIBER COLLISION", "SERVICE KING", "GERBER COLLISION", "KIDS R KIDS", "PRIMROSE", "KIDDIE ACADEMY", "KINDERCARE", "GODDARD",
+    "LEARNING EXPERIENCE", "LA PETITE", "CHILDRENS LIGHTHOUSE", "H R BLOCK", "JACKSON HEWITT", "LIBERTY TAX", "THE JOINT", "ATI PHYSICAL",
+    "ATHLETICO", "SELECT PHYSICAL", "SERC PHYSICAL", "HOME INSTEAD", "VISITING ANGELS", "RIGHT AT HOME", "COMFORT KEEPERS", "BRIGHTSTAR",
+    "GRISWOLD", "STATE FARM", "FARMERS INSURANCE", "ALLSTATE", "AMERICAN FAMILY", "SHELTER INSURANCE", "NATIONWIDE", "PROGRESSIVE",
+    "GEICO", "EDWARD JONES", "GREAT CLIPS", "WEED MAN", "TRUGREEN", "LAWN DOCTOR", "BRIGHTVIEW", "DAVEY TREE", "MR HANDYMAN",
+    "LEAFFILTER", "ARS RESCUE", "ONE HOUR AIR", "GO CAR WASH", "TIDAL WAVE", "MISTER CAR WASH", "QUICK QUACK", "TOMMYS EXPRESS"]
 SUFFIX = re.compile(r"\b(LLC|L L C|INC|INCORPORATED|CORP|CORPORATION|CO|COMPANY|LTD|LLP|PLLC|PC|PA|DBA|THE|AND)\b")
 
 
@@ -168,7 +178,9 @@ def main():
     # drop chains and franchises with many KC locations: PE targets are independents
     brand_counts = Counter(p["brand"] or norm(p["name"]) for p in places)
     for p in places:
-        p["chain"] = brand_counts[p["brand"] or norm(p["name"])] >= 5
+        n = norm(p["name"]).replace("-", " ")
+        p["chain"] = (brand_counts[p["brand"] or norm(p["name"])] >= 5 or any(n.startswith(f) or f" {f}" in f" {n}" for f in FRANCHISES)
+                      or (bool(p["brand"]) and brand_counts[p["brand"]] >= 3))
     # one row per business: merge same-name listings in the same category, keep the most complete one
     merged = {}
     for p in sorted(places, key=lambda p: (-bool(p["phone"]), -bool(p["website"]), -p["conf"])):
