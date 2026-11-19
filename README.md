@@ -5,12 +5,10 @@ Every SBA 7(a) and 504 loan to a Kansas City metro business since FY2020, on one
 **Live map:** see the GitHub Pages link in this repo's About section.
 
 ## What it shows
-Built as a sourcing tool for roll-up and lower middle market private equity.
+A sourcing tool for roll-up and lower middle market private equity, built on every SBA 7(a) and 504 loan to a Kansas City metro business since FY2010.
 
-- **Overview:** ~6,300 SBA loans to ~5,300 KC metro businesses since FY2010 (14 counties in Missouri and Kansas), with a "What changed this quarter" feed: new loans, new acquisitions, most active lenders and charge-offs.
-- **Add-on screener:** pick an industry, click the map to place a platform company, set a radius, and get every SBA borrower in that industry nearby. Flags long-time owners (first SBA loan 10+ years ago, a rough succession signal), businesses that changed hands, and repeat borrowers. Export the list to CSV with free Google and LinkedIn lookup links.
-- **Industries:** a fragmentation table (operators, long-time owners, acquisitions and median loan by 6-digit NAICS) to spot roll-up markets.
-- **Acquisitions:** loans SBA flags as a change of ownership (tracked since FY2018) by year, by industry and by lender.
+- **Find targets:** pick one of 13 common roll-up categories (HVAC & plumbing, dental, vet, landscaping and others), a platform location and a radius. Get every SBA-financed business nearby, flagged for long-time owners (first SBA loan 10+ years ago, a rough succession signal) and businesses that have sold before. Export to CSV.
+- **Market:** businesses, long-time owners and past sales by category, plus businesses sold per year with median deal loan.
 
 ## How it runs
 1. A GitHub Actions job (`.github/workflows/refresh.yml`) runs on the 5th of every month.
