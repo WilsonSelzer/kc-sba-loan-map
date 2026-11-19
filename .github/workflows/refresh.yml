@@ -11,6 +11,7 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,6 +22,9 @@ jobs:
         run: python scripts/pipeline.py
       - name: Pull Overture business listings (all businesses, with or without SBA loans)
         run: python scripts/places.py
+      - name: Build business profiles (website scan, domain age, Form 5500 headcount)
+        run: python scripts/enrich.py
+        continue-on-error: true
       - name: Commit updated data
         run: |
           git config user.name "kc-sba-bot"
