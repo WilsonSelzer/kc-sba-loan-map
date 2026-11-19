@@ -1,0 +1,2 @@
+pandas>=2.0
+zipcodes>=1.2

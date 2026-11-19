@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KC Small Business Lending Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout: operator console. Fixed left rail of controls and the quarterly feed; map fills the rest. */
+  --bg: #f3f4f6; --panel: #ffffff; --ink: #15202e; --muted: #5a6575; --rule: #dde1e7;
+  --accent: #d9480f;      /* acquisitions */
+  --base: #1f5fbf;        /* all other loans */
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 14px; display: grid; grid-template-columns: 380px 1fr; }
+aside { height: 100%; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--rule); padding: 20px 20px 28px; display: flex; flex-direction: column; gap: 18px; }
+#map { height: 100%; }
+.kicker { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+h1 { font-family: var(--display); font-size: 27px; line-height: 1.05; margin: 4px 0 6px; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); line-height: 1.5; }
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+.kpi { background: var(--panel); padding: 10px 12px; }
+.kpi b { display: block; font-family: var(--display); font-size: 22px; font-variant-numeric: tabular-nums; }
+.kpi span { font-size: 12px; color: var(--muted); }
+.kpi.acq b { color: var(--accent); }
+h2 { font-family: var(--display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.filters { display: grid; gap: 10px; }
+label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+select, input[type=search] { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 8px; width: 100%; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); background: #fff4ee; border: 1px solid #f6c9b3; border-radius: 4px; padding: 8px 10px; cursor: pointer; }
+.toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+.count { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.feed { border: 1px solid var(--rule); border-left: 3px solid var(--accent); padding: 12px; display: grid; gap: 8px; }
+.feed .head { font-size: 13px; line-height: 1.45; }
+.feed .head b { font-variant-numeric: tabular-nums; }
+.feed ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 230px; overflow-y: auto; }
+.feed li button { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 8px; width: 100%; padding: 5px 4px; border-radius: 3px; font-size: 13px; }
+.feed li button:hover, .feed li button:focus-visible { background: #fff4ee; outline: none; }
+.feed li .amt { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.feed li .sub { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); margin-top: -2px; }
+.mini { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.mini b { color: var(--ink); font-weight: 500; }
+.runs { font-family: var(--mono); font-size: 11.5px; color: var(--muted); display: grid; gap: 3px; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.foot { font-size: 11.5px; color: var(--muted); line-height: 1.5; margin-top: auto; }
+.foot a { color: var(--base); }
+.pop { font-family: var(--body); font-size: 13px; min-width: 230px; }
+.pop .n { font-family: var(--display); font-size: 17px; line-height: 1.15; margin-bottom: 2px; }
+.pop .tag { display: inline-block; background: #fff4ee; color: var(--accent); font-size: 11px; padding: 1px 6px; border-radius: 3px; margin: 2px 0 6px; }
+.pop dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0 0; }
+.pop dt { color: var(--muted); }
+.pop dd { margin: 0; }
+@media (max-width: 760px) {
+  body { grid-template-columns: 1fr; grid-template-rows: 55% 45%; }
+  aside { order: 2; border-right: none; border-top: 1px solid var(--rule); }
+}
+</style>
+</head>
+<body>
+<aside>
+  <div>
+    <div class="kicker">SBA 7(a) &amp; 504 loans · Kansas City metro · FY2020 to date</div>
+    <h1>KC Small Business Lending Map</h1>
+    <p class="lede">Every SBA-backed loan to a Kansas City business since 2020, refreshed automatically when SBA publishes new data. Orange marks loans used to buy an existing business.</p>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <section>
+    <h2>What changed this quarter</h2>
+    <div class="feed" id="feed"><div class="mini">Loading…</div></div>
+  </section>
+
+  <section class="filters">
+    <h2>Filter</h2>
+    <label class="toggle" for="acq"><input type="checkbox" id="acq"> Business acquisitions only</label>
+    <label for="sector">Industry
+      <select id="sector"><option value="">All industries</option></select></label>
+    <div class="row">
+      <label for="size">Loan size
+        <select id="size">
+          <option value="0">Any size</option>
+          <option value="500000">$500K+</option>
+          <option value="1000000">$1M+</option>
+          <option value="2500000">$2.5M+</option>
+        </select></label>
+      <label for="fy">Fiscal year
+        <select id="fy"><option value="">All years</option></select></label>
+    </div>
+    <div class="row">
+      <label for="status">Status
+        <select id="status"><option value="">Any status</option></select></label>
+      <label for="prog">Program
+        <select id="prog"><option value="">7(a) and 504</option><option>7(a)</option><option>504</option></select></label>
+    </div>
+    <label for="q">Search business, lender or franchise
+      <input type="search" id="q" placeholder="e.g. HVAC, OakStar, Jersey Mike's"></label>
+    <div class="count" id="count"></div>
+    <div class="legend"><span><i class="dot" style="background:var(--accent)"></i>Acquisition</span><span><i class="dot" style="background:var(--base)"></i>Other loan</span><span>Size = loan amount</span></div>
+  </section>
+
+  <section>
+    <h2>Pipeline runs</h2>
+    <div class="runs" id="runs"></div>
+  </section>
+
+  <div class="foot">Source: U.S. Small Business Administration, 7(a) &amp; 504 FOIA data (public). Loans are placed at their ZIP code, not the exact street address. Canceled and unfunded loans are excluded. Built by Wilson Selzer · <a href="https://github.com/WilsonSelzer/kc-sba-loan-map">code on GitHub</a></div>
+</aside>
+<div id="map" role="region" aria-label="Map of KC SBA loans"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const money = v => v >= 1e9 ? `$${(v/1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : `$${Math.round(v/1e3)}K`;
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+const map = L.map("map", { preferCanvas: true, zoomControl: true }).setView([39.03, -94.58], 10);
+L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+  maxZoom: 18, subdomains: "abcd",
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+}).addTo(map);
+const layer = L.layerGroup().addTo(map);
+const markers = new Map();
+let loans = [], newIds = new Set();
+
+function card(l) {
+  const acq = l.age === "Change of Ownership";
+  return `<div class="pop"><div class="n">${esc(l.name)}</div>
+    ${acq ? '<span class="tag">Business acquisition</span>' : ""}${newIds.has(l.id) ? ' <span class="tag">New this quarter</span>' : ""}
+    <div>${esc(l.street)}, ${esc(l.city)}, ${esc(l.state)} ${esc(l.zip)}</div>
+    <dl><dt>Loan</dt><dd>${money(l.amount)} · ${esc(l.prog)}</dd>
+    <dt>Approved</dt><dd>${esc(l.date)}</dd>
+    <dt>Industry</dt><dd>${esc(l.industry)}</dd>
+    ${l.franchise ? `<dt>Franchise</dt><dd>${esc(l.franchise)}</dd>` : ""}
+    <dt>Lender</dt><dd>${esc(l.lender)}</dd>
+    <dt>Business</dt><dd>${esc(l.age)}</dd>
+    <dt>Jobs</dt><dd>${l.jobs}</dd>
+    <dt>Status</dt><dd>${esc(l.status)}</dd></dl></div>`;
+}
+
+function radius(a) { return Math.max(3, Math.min(16, Math.sqrt((a || 0) / 1e6) * 6)); }
+
+function render() {
+  const f = {
+    acq: $("acq").checked, sector: $("sector").value, size: +$("size").value, fy: $("fy").value,
+    status: $("status").value, prog: $("prog").value, q: $("q").value.trim().toLowerCase()
+  };
+  layer.clearLayers(); markers.clear();
+  let n = 0, dollars = 0;
+  for (const l of loans) {
+    if (f.acq && l.age !== "Change of Ownership") continue;
+    if (f.sector && l.sector !== f.sector) continue;
+    if ((l.amount || 0) < f.size) continue;
+    if (f.fy && String(l.fy) !== f.fy) continue;
+    if (f.status && l.status !== f.status) continue;
+    if (f.prog && l.prog !== f.prog) continue;
+    if (f.q && !`${l.name} ${l.lender} ${l.franchise || ""} ${l.industry}`.toLowerCase().includes(f.q)) continue;
+    const acq = l.age === "Change of Ownership";
+    const m = L.circleMarker([l.lat, l.lng], {
+      radius: radius(l.amount), weight: 1, color: "#fff",
+      fillColor: acq ? "#d9480f" : "#1f5fbf", fillOpacity: acq ? .85 : .55
+    }).bindPopup(() => card(l));
+    m.addTo(layer); markers.set(l.id, m);
+    n++; dollars += l.amount || 0;
+  }
+  $("count").textContent = `Showing ${n.toLocaleString()} loans · ${money(dollars)}`;
+}
+
+function focus(id) {
+  const l = loans.find(x => x.id === id); if (!l) return;
+  $("acq").checked = false; ["sector","fy","status","prog"].forEach(k => $(k).value = ""); $("size").value = "0"; $("q").value = "";
+  render();
+  map.flyTo([l.lat, l.lng], 14, { duration: .6 });
+  setTimeout(() => markers.get(id)?.openPopup(), 650);
+}
+
+Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/meta.json"].map(u => fetch(u).then(r => r.json())))
+.then(([L1, ch, sum, meta]) => {
+  loans = L1; newIds = new Set(ch.new_ids || []);
+  $("kpis").innerHTML = `
+    <div class="kpi"><b>${sum.loans.toLocaleString()}</b><span>loans since FY2020</span></div>
+    <div class="kpi"><b>${money(sum.dollars)}</b><span>total approved</span></div>
+    <div class="kpi acq"><b>${sum.acquisitions.toLocaleString()}</b><span>business acquisitions</span></div>
+    <div class="kpi acq"><b>${money(sum.acq_dollars)}</b><span>acquisition financing</span></div>`;
+
+  const byId = new Map(loans.map(l => [l.id, l]));
+  const acq = (ch.new_acquisitions || []).map(id => byId.get(id)).filter(Boolean).sort((a,b) => b.amount - a.amount);
+  const lenders = (ch.top_lenders || []).slice(0, 3).map(([n, v]) => `${esc(n)} (${money(v)})`).join(", ");
+  const sectors = (ch.top_sectors || []).slice(0, 3).map(([n, c]) => `${esc(n)} (${c})`).join(", ");
+  $("feed").innerHTML = `
+    <div class="head">SBA data as of <b>${esc(ch.asof)}</b>: <b>${ch.new_loans}</b> new KC loans worth <b>${money(ch.new_dollars)}</b>, including <b>${acq.length}</b> business acquisitions.</div>
+    ${acq.length ? `<ul>${acq.map(l => `<li><button type="button" data-id="${l.id}"><span>${esc(l.name)}</span><span class="amt">${money(l.amount)}</span><span class="sub">${esc(l.industry)} · ${esc(l.city)}</span></button></li>`).join("")}</ul>` : ""}
+    <div class="mini"><b>Most active lenders:</b> ${lenders || "none"}<br><b>Busiest industries:</b> ${sectors || "none"}
+    ${(ch.charge_offs || []).length ? `<br><b>New charge-offs:</b> ${ch.charge_offs.length}` : ""}</div>
+    <div class="mini">Compared with ${esc(ch.compared_to || "the previous snapshot")}.</div>`;
+  $("feed").querySelectorAll("button[data-id]").forEach(b => b.addEventListener("click", () => focus(b.dataset.id)));
+
+  $("runs").innerHTML = (meta.runs || []).slice(0, 6).map(r =>
+    `<div>${esc(r.ran_at.replace("T", " ").replace("+00:00", " UTC"))} · ${esc(r.result)}${r.new_loans != null ? ` · ${r.new_loans} new` : ""}</div>`).join("")
+    + `<div>Checks SBA monthly; SBA publishes quarterly.</div>`;
+
+  const opts = (id, vals) => vals.forEach(v => $(id).insertAdjacentHTML("beforeend", `<option>${esc(v)}</option>`));
+  opts("sector", Object.keys(sum.by_sector).filter(s => s !== "Other").sort());
+  opts("fy", [...new Set(loans.map(l => l.fy))].sort((a,b) => b - a));
+  opts("status", [...new Set(loans.map(l => l.status))].sort());
+  ["acq","sector","size","fy","status","prog"].forEach(id => $(id).addEventListener("change", render));
+  $("q").addEventListener("input", render);
+  render();
+})
+.catch(e => { $("feed").innerHTML = `<div class="mini">Couldn't load the data files (${esc(e.message)}). Open this page from GitHub Pages or a local web server.</div>`; });
+</script>
+</body>
+</html>

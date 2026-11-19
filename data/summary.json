@@ -1,0 +1,84 @@
+{
+ "loans": 2662,
+ "dollars": 1489647700.0,
+ "acquisitions": 347,
+ "acq_dollars": 356417400.0,
+ "by_sector": {
+  "Restaurants & hotels": {
+   "loans": 303,
+   "dollars": 223428400.0
+  },
+  "Healthcare": {
+   "loans": 325,
+   "dollars": 193169800.0
+  },
+  "Retail": {
+   "loans": 264,
+   "dollars": 177357700.0
+  },
+  "Construction & trades": {
+   "loans": 351,
+   "dollars": 152728800.0
+  },
+  "Professional services": {
+   "loans": 271,
+   "dollars": 148155000.0
+  },
+  "Personal & repair services": {
+   "loans": 260,
+   "dollars": 118116900.0
+  },
+  "Manufacturing": {
+   "loans": 129,
+   "dollars": 87291700.0
+  },
+  "Wholesale": {
+   "loans": 102,
+   "dollars": 73444800.0
+  },
+  "Business services": {
+   "loans": 180,
+   "dollars": 71400300.0
+  },
+  "Arts & recreation": {
+   "loans": 126,
+   "dollars": 64833900.0
+  },
+  "Transportation & logistics": {
+   "loans": 130,
+   "dollars": 63013100.0
+  },
+  "Finance & insurance": {
+   "loans": 80,
+   "dollars": 41833700.0
+  },
+  "Real estate": {
+   "loans": 62,
+   "dollars": 28702600.0
+  },
+  "Education": {
+   "loans": 35,
+   "dollars": 15446900.0
+  },
+  "Information & media": {
+   "loans": 31,
+   "dollars": 14483600.0
+  },
+  "Mining & energy": {
+   "loans": 2,
+   "dollars": 9138000.0
+  },
+  "Agriculture": {
+   "loans": 8,
+   "dollars": 4824000.0
+  },
+  "Management": {
+   "loans": 2,
+   "dollars": 1878500.0
+  },
+  "Utilities": {
+   "loans": 1,
+   "dollars": 400000.0
+  }
+ }
+}
