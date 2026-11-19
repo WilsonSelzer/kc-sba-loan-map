@@ -19,6 +19,8 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Pull SBA data and rebuild if there's a new quarter
         run: python scripts/pipeline.py
+      - name: Pull Overture business listings (all businesses, with or without SBA loans)
+        run: python scripts/places.py
       - name: Commit updated data
         run: |
           git config user.name "kc-sba-bot"
