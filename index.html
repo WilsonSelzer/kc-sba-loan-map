@@ -91,6 +91,8 @@ th { white-space: nowrap; }
 .bar .v { font-family: var(--mono); text-align: right; color: var(--muted); }
 .foot { font-family: var(--mono); font-size: 10.5px; color: var(--muted); line-height: 1.5; padding: 12px 20px 16px; margin-top: auto; border-top: 1px solid var(--rule); }
 #map { height: 100%; }
+.home-btn { position: fixed; top: 12px; right: 12px; z-index: 1200; background: #fff; color: #15202e; border: 1px solid #15202e; padding: 6px 12px; font: 500 12px/1 "IBM Plex Mono", monospace; letter-spacing: .08em; text-transform: uppercase; text-decoration: none; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+.home-btn:hover { background: #15202e; color: #fff; }
 .pop { font-family: var(--body); font-size: 14.5px; min-width: 240px; }
 .pop .n { font-family: var(--display); font-size: 20px; font-weight: 700; line-height: 1.15; margin-bottom: 4px; }
 .pop dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0; }
@@ -111,6 +113,7 @@ th { white-space: nowrap; }
 </style>
 </head>
 <body>
+<a class="home-btn" href="/">← Home</a>
 <aside>
   <div class="head">
     <h1>KC Roll-Up Target Finder</h1>
