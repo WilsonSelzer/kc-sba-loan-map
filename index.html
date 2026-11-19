@@ -476,14 +476,14 @@ Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/
     renderFind(); map.flyTo(platform, state.radius > 25 ? 9 : 10, { duration: .5 }); }));
   $("lt").addEventListener("change", () => { state.lt = $("lt").checked; renderFind(); });
   $("sbaonly").addEventListener("change", () => { state.sba = $("sbaonly").checked; renderFind(); });
-  const pulls = hist.releases.filter(r => !r.baseline).map(r => r.date).reverse();
+  const pulls = hist.releases.filter(r => !r.baseline && r.date > BASE()).map(r => r.date).reverse();
   if (pulls.length) {
     $("since-wrap").hidden = false;
     $("since").innerHTML += pulls.map(d => `<option value="${d}">since ${monthName(d)}</option>`).join("");
     $("since").addEventListener("change", () => { state.since = $("since").value; renderFind(); });
   }
   const indep = biz.filter(b => b.added);
-  const months = hist.releases.filter(r => !r.baseline).map(r => ({ d: r.date, n: indep.filter(b => b.added === r.date).length }));
+  const months = hist.releases.filter(r => !r.baseline && r.date > BASE()).map(r => ({ d: r.date, n: indep.filter(b => b.added === r.date).length }));
   const mx = Math.max(1, ...months.map(m => m.n));
   $("newbars").innerHTML = months.length ? months.map(m => `<div class="bar"><span class="y">${monthName(m.d).replace(" 20", " '")}</span><span class="track"><span class="fill green" style="width:${(m.n / mx * 100).toFixed(1)}%"></span></span><span class="v">${m.n.toLocaleString()} new</span></div>`).join("")
     : '<div class="mini">History starts with the next monthly pull.</div>';

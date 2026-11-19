@@ -115,7 +115,7 @@ def load_history():
 def record(hist, release, pids):
     """Remember the first release each listing appeared in. The first release ever tracked is the baseline."""
     day = release.split(".")[0]
-    if any(r["release"] == release for r in hist["releases"]):
+    if any(r["release"] == release or r["date"] == day for r in hist["releases"]):   # same-day re-releases are one pull
         return
     new = 0
     for pid in pids:
