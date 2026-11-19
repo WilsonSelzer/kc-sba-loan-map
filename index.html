@@ -3,452 +3,311 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KC Small Business Lending Map</title>
+<title>KC Roll-Up Target Finder</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  /* Layout: operator console. Left rail with four tabs (overview, screener, industries, acquisitions); map fills the rest. */
+  /* Layout: two-tab left rail (Find targets, Market). Category buttons replace dropdowns; map fills the rest. */
   --bg: #f3f4f6; --panel: #ffffff; --ink: #15202e; --muted: #5a6575; --rule: #dde1e7; --soft: #f6f7f9;
-  --accent: #d9480f; --accent-soft: #fff4ee; --base: #1f5fbf; --base-soft: #eaf1fb; --gold: #9a6b00;
+  --accent: #d9480f; --accent-soft: #fff4ee; --base: #1f5fbf; --gold: #9a6b00; --gold-soft: #fbf3dc;
   --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
   --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 14px; display: grid; grid-template-columns: 440px 1fr; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 14px; display: grid; grid-template-columns: 420px 1fr; }
 aside { height: 100%; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--rule); display: flex; flex-direction: column; }
 .head { padding: 18px 20px 4px; }
-.kicker { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
-h1 { font-family: var(--display); font-size: 26px; line-height: 1.05; margin: 4px 0 6px; text-wrap: balance; }
-.lede { margin: 0; color: var(--muted); line-height: 1.5; font-size: 13.5px; }
-nav { display: flex; gap: 2px; padding: 14px 20px 0; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--panel); z-index: 5; }
-nav button { font: 500 13px var(--body); color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 10px 9px; cursor: pointer; }
+h1 { font-family: var(--display); font-size: 25px; line-height: 1.05; margin: 0 0 4px; }
+.lede { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+nav { display: flex; gap: 4px; padding: 12px 20px 0; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--panel); z-index: 5; }
+nav button { font: 500 14px var(--body); color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 10px 9px; cursor: pointer; }
 nav button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
-nav button:focus-visible { outline: 2px solid var(--base); outline-offset: -2px; }
-.tab { padding: 16px 20px 24px; display: none; flex-direction: column; gap: 16px; }
+button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid var(--base); outline-offset: 2px; }
+.tab { padding: 16px 20px 20px; display: none; flex-direction: column; gap: 18px; }
 .tab.on { display: flex; }
-h2 { font-family: var(--display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
-.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
-.kpi { background: var(--panel); padding: 10px 12px; }
-.kpi b { display: block; font-family: var(--display); font-size: 22px; font-variant-numeric: tabular-nums; }
-.kpi span { font-size: 12px; color: var(--muted); }
-.kpi.acq b { color: var(--accent); }
-.filters { display: grid; gap: 10px; }
-label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
-select, input[type=search] { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 8px; width: 100%; }
-.row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.check { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink); cursor: pointer; }
-.check input { width: 16px; height: 16px; accent-color: var(--accent); }
-.toggle { background: var(--accent-soft); border: 1px solid #f6c9b3; border-radius: 4px; padding: 8px 10px; }
-.count { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-.feed { border: 1px solid var(--rule); border-left: 3px solid var(--accent); padding: 12px; display: grid; gap: 8px; }
-.feed .lead { font-size: 13px; line-height: 1.45; }
-.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
-.list.scroll { max-height: 230px; overflow-y: auto; }
-.item { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; width: 100%; padding: 6px 6px; border-radius: 3px; font-size: 13px; }
-.item:hover, .item:focus-visible { background: var(--accent-soft); outline: none; }
-.item .amt { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: right; }
-.item .sub { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); }
-.mini { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
-.mini b { color: var(--ink); font-weight: 500; }
-.runs { font-family: var(--mono); font-size: 11.5px; color: var(--muted); display: grid; gap: 3px; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
-.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
-.foot { font-size: 11px; color: var(--muted); line-height: 1.5; padding: 12px 20px 16px; margin-top: auto; border-top: 1px solid var(--rule); }
-a { color: var(--base); }
-.btn { font: 500 13px var(--body); color: #fff; background: var(--ink); border: 0; border-radius: 4px; padding: 7px 12px; cursor: pointer; }
-.btn.ghost { color: var(--ink); background: var(--panel); border: 1px solid var(--rule); }
-.btn:focus-visible { outline: 2px solid var(--base); outline-offset: 2px; }
-.callout { background: var(--soft); border: 1px solid var(--rule); border-radius: 4px; padding: 10px 12px; font-size: 13px; line-height: 1.45; }
-.examples { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { font: 500 12px var(--body); color: var(--accent); background: var(--accent-soft); border: 1px solid #f6c9b3; border-radius: 999px; padding: 4px 10px; cursor: pointer; }
-.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.tgt { border-bottom: 1px solid var(--rule); padding: 8px 2px; display: grid; gap: 3px; }
-.tgt .top { display: flex; justify-content: space-between; gap: 8px; }
+.step-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13.5px; margin-bottom: 8px; }
+.step-title .n { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 11px; }
+.group-label { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 8px 0 5px; }
+.group-label:first-child { margin-top: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 500 13px var(--body); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 999px; padding: 5px 11px; cursor: pointer; }
+.chip:hover { border-color: var(--ink); }
+.chip[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.seg button { font: 500 13px var(--body); color: var(--ink); background: var(--panel); border: 0; padding: 6px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.where { display: flex; gap: 10px; align-items: center; }
+select { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; flex: 1; }
+.or { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.results { border-top: 1px solid var(--ink); padding-top: 12px; display: grid; gap: 10px; }
+.results-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.results-head b { font-family: var(--display); font-size: 20px; }
+.results-head span { color: var(--muted); font-size: 13px; }
+.btn { font: 500 13px var(--body); color: #fff; background: var(--ink); border: 0; border-radius: 6px; padding: 7px 12px; cursor: pointer; white-space: nowrap; }
+.toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.toggle input { width: 16px; height: 16px; accent-color: var(--gold); }
+.tgt { border-bottom: 1px solid var(--rule); padding: 9px 2px; display: grid; gap: 3px; }
+.tgt .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .tgt .nm { all: unset; cursor: pointer; font-weight: 600; font-size: 13.5px; }
 .tgt .nm:hover, .tgt .nm:focus-visible { color: var(--accent); text-decoration: underline; }
+.tgt .dist { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
 .tgt .meta { font-size: 12px; color: var(--muted); }
 .tgt .links { font-size: 11.5px; display: flex; gap: 10px; }
 .flag { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 3px; margin-right: 4px; }
-.flag.lt { background: #fbf3dc; color: var(--gold); }
-.flag.acq { background: var(--accent-soft); color: var(--accent); }
-.flag.co { background: #fde8e8; color: #b42318; }
-.flag.rep { background: var(--base-soft); color: var(--base); }
-table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
-th { text-align: right; font-weight: 500; color: var(--muted); padding: 6px 4px; border-bottom: 1px solid var(--ink); cursor: pointer; user-select: none; white-space: nowrap; }
+.flag.lt { background: var(--gold-soft); color: var(--gold); }
+.flag.sold { background: var(--accent-soft); color: var(--accent); }
+.mini { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+a { color: var(--base); }
+.news { background: var(--soft); border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: 4px; padding: 10px 12px; font-size: 13px; line-height: 1.45; }
+h2 { font-family: var(--display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th { text-align: right; font-weight: 500; font-size: 12px; color: var(--muted); padding: 6px 4px; border-bottom: 1px solid var(--ink); }
 th:first-child, td:first-child { text-align: left; }
-th[aria-sort] { color: var(--ink); }
-td { text-align: right; padding: 6px 4px; border-bottom: 1px solid var(--rule); }
+td { text-align: right; padding: 8px 4px; border-bottom: 1px solid var(--rule); }
 tbody tr { cursor: pointer; }
-tbody tr:hover { background: var(--accent-soft); }
-tr.show td:first-child { font-weight: 600; }
+tbody tr:hover, tbody tr:focus-visible { background: var(--accent-soft); outline: none; }
+td .go { color: var(--muted); font-size: 12px; white-space: nowrap; }
+th { white-space: nowrap; }
 .bars { display: grid; gap: 4px; }
-.bar { display: grid; grid-template-columns: 44px 1fr 92px; align-items: center; gap: 8px; font-size: 12px; }
+.bar { display: grid; grid-template-columns: 44px 1fr 86px; align-items: center; gap: 8px; font-size: 12px; }
 .bar .y { font-family: var(--mono); color: var(--muted); }
-.bar .track { height: 14px; background: var(--soft); border-radius: 2px; overflow: hidden; }
-.bar .fill { height: 100%; background: var(--accent); }
+.bar .track { height: 12px; background: var(--soft); border-radius: 2px; overflow: hidden; }
+.bar .fill { display: block; height: 100%; background: var(--accent); }
 .bar .v { font-family: var(--mono); text-align: right; color: var(--muted); }
-.steps { display: grid; gap: 12px; }
-.steps label { font-size: 13px; color: var(--ink); font-weight: 500; }
-.steps .st { display: flex; align-items: center; }
-.steps .n { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 11px; margin-right: 6px; }
-.results-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-top: 4px; border-top: 1px solid var(--rule); }
-.results-bar .count { font-size: 13px; color: var(--ink); font-family: var(--body); font-weight: 500; }
-details.more { border: 1px solid var(--rule); border-radius: 4px; padding: 8px 10px; }
-details.more summary { cursor: pointer; font-size: 13px; color: var(--muted); }
-details.more[open] summary { margin-bottom: 10px; }
-.hint { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.foot { font-size: 11px; color: var(--muted); line-height: 1.5; padding: 12px 20px 16px; margin-top: auto; border-top: 1px solid var(--rule); }
 #map { height: 100%; }
-.pop { font-family: var(--body); font-size: 13px; min-width: 240px; }
+.pop { font-family: var(--body); font-size: 13px; min-width: 230px; }
 .pop .n { font-family: var(--display); font-size: 17px; line-height: 1.15; margin-bottom: 4px; }
 .pop dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0; }
 .pop dt { color: var(--muted); }
 .pop dd { margin: 0; }
 .pop .links { display: flex; gap: 10px; font-size: 12px; }
 .platform-icon { background: var(--ink); color: #fff; border: 2px solid #fff; border-radius: 4px; font: 600 11px var(--body); padding: 2px 6px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+.map-key { background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 10px; font: 12px var(--body); color: var(--muted); display: flex; gap: 12px; }
+.map-key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 @media (max-width: 760px) {
   body { grid-template-columns: 1fr; grid-template-rows: 50% 50%; }
   aside { order: 2; border-right: none; border-top: 1px solid var(--rule); }
 }
-@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
 </head>
 <body>
 <aside>
   <div class="head">
-    <h1>KC Small Business Lending Map</h1>
-    <p class="lede">Find add-on targets for a roll-up, using every SBA loan to a Kansas City business since 2010.</p>
+    <h1>KC Roll-Up Target Finder</h1>
+    <p class="lede">Every Kansas City small business that has taken an SBA loan since 2010, as a list of add-on targets.</p>
   </div>
   <nav role="tablist" aria-label="Views">
-    <button role="tab" id="t-screener" aria-controls="p-screener" aria-selected="true">Find targets</button>
-    <button role="tab" id="t-industries" aria-controls="p-industries" aria-selected="false">Industries</button>
-    <button role="tab" id="t-acq" aria-controls="p-acq" aria-selected="false">Deals</button>
-    <button role="tab" id="t-overview" aria-controls="p-overview" aria-selected="false">All loans</button>
+    <button role="tab" id="t-find" aria-controls="p-find" aria-selected="true">Find targets</button>
+    <button role="tab" id="t-market" aria-controls="p-market" aria-selected="false">Market</button>
   </nav>
 
-  <section class="tab on" id="p-screener" role="tabpanel" aria-labelledby="t-screener">
-    <div class="steps">
-      <label for="s-ind"><span class="st"><span class="n">1</span>Industry</span><select id="s-ind"></select></label>
-      <label for="s-city"><span class="st"><span class="n">2</span>Your platform's location</span><select id="s-city"></select></label>
-      <label for="s-rad"><span class="st"><span class="n">3</span>Search radius
-       </span><select id="s-rad"><option value="10">10 miles</option><option value="25">25 miles</option><option value="50" selected>50 miles</option><option value="75">75 miles</option></select></label>
+  <section class="tab on" id="p-find" role="tabpanel" aria-labelledby="t-find">
+    <div>
+      <div class="step-title"><span class="n">1</span>What are you rolling up?</div>
+      <div id="cats"></div>
     </div>
-    <div class="results-bar">
-      <div class="count" id="s-count"></div>
-      <button class="btn" id="s-csv" type="button">Export CSV</button>
+    <div>
+      <div class="step-title"><span class="n">2</span>Where's your platform?</div>
+      <div class="where"><select id="city" aria-label="Platform location"></select><span class="or">or click the map</span></div>
     </div>
-    <details class="more">
-      <summary>Refine and sort</summary>
-      <div class="filters">
-        <label class="check" for="s-lt"><input type="checkbox" id="s-lt"> Long-time owners only</label>
-        <label class="check" for="s-co"><input type="checkbox" id="s-co" checked> Hide charged-off loans</label>
-        <label for="s-sort">Sort by
-          <select id="s-sort"><option value="dist">Closest first</option><option value="first">Longest-held first</option><option value="amt">Largest loan first</option></select></label>
+    <div>
+      <div class="step-title"><span class="n">3</span>How far will you go?</div>
+      <div class="seg" id="radius" role="group" aria-label="Search radius">
+        <button type="button" data-r="10" aria-pressed="false">10 mi</button>
+        <button type="button" data-r="25" aria-pressed="true">25 mi</button>
+        <button type="button" data-r="50" aria-pressed="false">50 mi</button>
       </div>
-    </details>
-    <div id="s-list"></div>
+    </div>
+    <div class="results">
+      <div class="results-head">
+        <div><b id="r-count">0</b> <span id="r-label">targets</span></div>
+        <button class="btn" id="csv" type="button">Export CSV</button>
+      </div>
+      <label class="toggle" for="lt"><input type="checkbox" id="lt"> Long-time owners only <span class="mini">(first SBA loan 10+ years ago)</span></label>
+      <div id="list"></div>
+    </div>
   </section>
 
-  <section class="tab" id="p-industries" role="tabpanel" aria-labelledby="t-industries">
-    <p class="hint">More small operators means a more fragmented market. Click an industry to find targets in it.</p>
-    <input type="search" id="i-q" placeholder="Search industries, e.g. dental" aria-label="Search industries">
-    <div style="overflow-x:auto">
+  <section class="tab" id="p-market" role="tabpanel" aria-labelledby="t-market">
+    <div class="news" id="news">Loading…</div>
+    <div>
+      <h2>Roll-up categories in KC</h2>
       <table>
-        <thead><tr>
-          <th data-k="industry">Industry</th><th data-k="operators" aria-sort="descending" title="Businesses with an SBA loan since FY2010">Businesses</th>
-          <th data-k="longtime_ops" title="First SBA loan 10+ years ago">Long-time</th><th data-k="acq" title="Bought with an SBA loan since FY2018">Sold</th><th data-k="median">Median loan</th>
-        </tr></thead>
-        <tbody id="i-body"></tbody>
+        <thead><tr><th>Category</th><th title="Businesses with an SBA loan since 2010">Businesses</th><th title="First SBA loan 10+ years ago">Long-time</th><th title="Bought with an SBA loan since 2018">Sold</th><th></th></tr></thead>
+        <tbody id="market"></tbody>
       </table>
+      <div class="mini" style="margin-top:6px">Click a category to see its targets.</div>
+    </div>
+    <div>
+      <h2>Businesses sold per year</h2>
+      <div class="bars" id="bars"></div>
+      <div class="mini" style="margin-top:6px">Right column: median loan used to buy the business, a rough read on deal size.</div>
     </div>
   </section>
 
-  <section class="tab" id="p-acq" role="tabpanel" aria-labelledby="t-acq">
-    <p class="hint">Businesses bought with an SBA loan. The map shows only these deals.</p>
-    <div>
-      <h2>Deals per year · median loan</h2>
-      <div class="bars" id="a-bars"></div>
-    </div>
-    <div>
-      <h2>Most-sold industries</h2>
-      <ul class="list" id="a-ind"></ul>
-    </div>
-    <div>
-      <h2>Top deal lenders</h2>
-      <ul class="list" id="a-lend"></ul>
-    </div>
-  </section>
-
-  <section class="tab" id="p-overview" role="tabpanel" aria-labelledby="t-overview">
-    <div class="kpis" id="kpis"></div>
-    <div class="feed" id="feed"><div class="mini">Loading…</div></div>
-    <details class="more">
-      <summary>Filter the map</summary>
-      <div class="filters">
-        <label class="check" for="acq"><input type="checkbox" id="acq"> Deals only</label>
-        <label for="sector">Sector <select id="sector"><option value="">All sectors</option></select></label>
-        <div class="row">
-          <label for="size">Loan size
-            <select id="size"><option value="0">Any size</option><option value="500000">$500K+</option><option value="1000000">$1M+</option><option value="2500000">$2.5M+</option></select></label>
-          <label for="fy">Year
-            <select id="fy"><option value="recent">FY2020 to date</option><option value="">All since FY2010</option></select></label>
-        </div>
-        <div class="row">
-          <label for="status">Status <select id="status"><option value="">Any status</option></select></label>
-          <label for="prog">Program <select id="prog"><option value="">7(a) and 504</option><option>7(a)</option><option>504</option></select></label>
-        </div>
-        <input type="search" id="q" placeholder="Search business, lender or franchise" aria-label="Search loans">
-      </div>
-    </details>
-    <div class="count" id="count"></div>
-  </section>
-
-  <div class="foot"><span id="updated"></span> Source: SBA 7(a) &amp; 504 public loan data. Locations are by ZIP code, so distances are approximate. <a href="https://github.com/WilsonSelzer/kc-sba-loan-map">Code and run log</a></div>
+  <div class="foot"><span id="updated"></span> Source: SBA 7(a) &amp; 504 public loan data, placed by ZIP code, so distances are approximate. <a href="https://github.com/WilsonSelzer/kc-sba-loan-map">How it works</a></div>
 </aside>
-<div id="map" role="region" aria-label="Map of KC SBA loans"></div>
+<div id="map" role="region" aria-label="Map of target businesses"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const money = v => v >= 1e9 ? `$${(v/1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : `$${Math.round((v||0)/1e3)}K`;
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const ACQ = "Change of Ownership";
-const SHOWCASE = [["238220", "HVAC & plumbing"], ["621210", "Dental"], ["541940", "Veterinary"]];
-const CITIES = [["Overland Park, KS", 38.9822, -94.6708], ["Kansas City, MO (downtown)", 39.0997, -94.5786], ["Kansas City, KS", 39.1142, -94.6275],
-  ["Olathe, KS", 38.8814, -94.8191], ["Lenexa, KS", 38.9536, -94.7336], ["Shawnee, KS", 39.0228, -94.7152], ["Leawood, KS", 38.9667, -94.6169],
-  ["Lee's Summit, MO", 38.9108, -94.3822], ["Independence, MO", 39.0911, -94.4155], ["Blue Springs, MO", 39.0169, -94.2816],
-  ["Liberty, MO", 39.2461, -94.4191], ["North Kansas City, MO", 39.1300, -94.5622]];
+const SOLD = "Change of Ownership";
 
-const map = L.map("map", { preferCanvas: true }).setView([39.03, -94.58], 10);
+const GROUPS = [
+  ["Home services", [["hvac", "HVAC & plumbing", ["238220"]], ["elec", "Electrical", ["238210"]], ["roof", "Roofing & exteriors", ["238160", "238170"]],
+                     ["lawn", "Landscaping", ["561730"]], ["pest", "Pest control & cleaning", ["561710", "561720", "561740"]]]],
+  ["Healthcare", [["dental", "Dental", ["621210"]], ["vet", "Veterinary", ["541940"]], ["pt", "PT & chiropractic", ["621340", "621310"]],
+                  ["home", "Home health & senior care", ["621610", "623312", "624120", "623110"]]]],
+  ["Business services", [["acct", "Accounting & tax", ["541211", "541213", "541219"]], ["ins", "Insurance agencies", ["524210"]]]],
+  ["Consumer", [["auto", "Auto repair & car wash", ["811111", "811121", "811118", "811191", "811198", "811192"]], ["kids", "Child care", ["624410"]]]],
+];
+const CATS = GROUPS.flatMap(([, c]) => c).map(([id, name, codes]) => ({ id, name, codes: new Set(codes) }));
+const CITIES = [["Overland Park, KS", 38.9822, -94.6708], ["Kansas City, MO", 39.0997, -94.5786], ["Kansas City, KS", 39.1142, -94.6275],
+  ["Olathe, KS", 38.8814, -94.8191], ["Lenexa, KS", 38.9536, -94.7336], ["Lee's Summit, MO", 38.9108, -94.3822],
+  ["Independence, MO", 39.0911, -94.4155], ["Liberty, MO", 39.2461, -94.4191], ["North Kansas City, MO", 39.1300, -94.5622]];
+
+const map = L.map("map", { preferCanvas: true }).setView([38.98, -94.6], 10);
 L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
-  maxZoom: 16, attribution: "Tiles &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors"
-}).addTo(map);
+  maxZoom: 16, attribution: "Tiles &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors" }).addTo(map);
 L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}", { maxZoom: 16 }).addTo(map);
 const layer = L.layerGroup().addTo(map);
-const markers = new Map();
-let loans = [], summary = null, newIds = new Set(), tab = "overview";
-let platform = L.latLng(38.9822, -94.6708);   // Overland Park
-let platformMarker = null, radiusCircle = null, screenRows = [];
+const key = L.control({ position: "bottomleft" });
+key.onAdd = () => { const d = L.DomUtil.create("div", "map-key"); d.id = "key"; return d; };
+key.addTo(map);
 
-const links = (name, city, state) => {
-  const q = encodeURIComponent(`${name} ${city} ${state}`);
+let loans = [], biz = [], state = { tab: "find", cat: "hvac", radius: 25, lt: false }, platform = L.latLng(38.9822, -94.6708);
+let markers = new Map(), shown = [], decor = [];
+
+const links = b => { const q = encodeURIComponent(`${b.name} ${b.city} ${b.state}`);
   return `<a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">Google</a>
-          <a href="https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(name)}" target="_blank" rel="noopener">LinkedIn</a>
-          <a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Maps</a>`;
-};
+    <a href="https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(b.name)}" target="_blank" rel="noopener">LinkedIn</a>
+    <a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Maps</a>`; };
+const flags = b => (b.longtime ? '<span class="flag lt">Long-time owner</span>' : "") + (b.sold ? '<span class="flag sold">Sold before</span>' : "");
+const card = b => `<div class="pop"><div class="n">${esc(b.name)}</div>${flags(b)}
+  <div style="margin-top:4px">${esc(b.street)}, ${esc(b.city)}, ${esc(b.state)} ${esc(b.zip)}</div>
+  <dl><dt>Industry</dt><dd>${esc(b.industry)}</dd><dt>First SBA loan</dt><dd>${esc(b.first)}</dd>
+  <dt>Latest loan</dt><dd>${money(b.amount)} (${esc((b.date || "").slice(0, 4))})</dd><dt>Lender</dt><dd>${esc(b.lender)}</dd><dt>Jobs</dt><dd>${b.jobs}</dd></dl>
+  <div class="links">${links(b)}</div></div>`;
 
-function card(l) {
-  const flags = [l.longtime && '<span class="flag lt">Long-time</span>', l.age === ACQ && '<span class="flag acq">Acquisition loan</span>',
-    l.nloans > 1 && `<span class="flag rep">${l.nloans} SBA loans</span>`, newIds.has(l.id) && '<span class="flag acq">New this quarter</span>'].filter(Boolean).join("");
-  return `<div class="pop"><div class="n">${esc(l.name)}</div>${flags}
-    <div style="margin-top:4px">${esc(l.street)}, ${esc(l.city)}, ${esc(l.state)} ${esc(l.zip)}</div>
-    <dl><dt>Loan</dt><dd>${money(l.amount)} · ${esc(l.prog)}</dd><dt>Approved</dt><dd>${esc(l.date)}</dd>
-    <dt>Industry</dt><dd>${esc(l.industry)}</dd>${l.franchise ? `<dt>Franchise</dt><dd>${esc(l.franchise)}</dd>` : ""}
-    <dt>Lender</dt><dd>${esc(l.lender)}</dd><dt>Business</dt><dd>${esc(l.age)}</dd>
-    <dt>First SBA loan</dt><dd>${esc(l.first)}</dd><dt>Jobs</dt><dd>${l.jobs}</dd><dt>Status</dt><dd>${esc(l.status)}</dd></dl>
-    <div class="links">${links(l.name, l.city, l.state)}</div></div>`;
-}
-const radius = a => Math.max(3, Math.min(16, Math.sqrt((a || 0) / 1e6) * 6));
-function dot(l, opts = {}) {
-  const acq = l.age === ACQ;
-  const m = L.circleMarker([l.lat, l.lng], Object.assign({ radius: radius(l.amount), weight: 1, color: "#fff",
-    fillColor: acq ? "#d9480f" : "#1f5fbf", fillOpacity: acq ? .85 : .55 }, opts)).bindPopup(() => card(l));
-  m.addTo(layer); markers.set(l.id, m); return m;
-}
-function clearMap() { layer.clearLayers(); markers.clear();
-  if (platformMarker) { map.removeLayer(platformMarker); platformMarker = null; }
-  if (radiusCircle) { map.removeLayer(radiusCircle); radiusCircle = null; } }
-
-/* ---------- Overview ---------- */
-function renderOverview() {
-  clearMap();
-  const f = { acq: $("acq").checked, sector: $("sector").value, size: +$("size").value, fy: $("fy").value,
-    status: $("status").value, prog: $("prog").value, q: $("q").value.trim().toLowerCase() };
-  let n = 0, dollars = 0;
-  for (const l of loans) {
-    if (f.acq && l.age !== ACQ) continue;
-    if (f.sector && l.sector !== f.sector) continue;
-    if ((l.amount || 0) < f.size) continue;
-    if (f.fy === "recent" ? l.fy < 2020 : f.fy && String(l.fy) !== f.fy) continue;
-    if (f.status && l.status !== f.status) continue;
-    if (f.prog && l.prog !== f.prog) continue;
-    if (f.q && !`${l.name} ${l.lender} ${l.franchise || ""} ${l.industry}`.toLowerCase().includes(f.q)) continue;
-    dot(l); n++; dollars += l.amount || 0;
-  }
-  $("count").textContent = `Showing ${n.toLocaleString()} loans · ${money(dollars)}`;
-}
-
-/* ---------- Screener ---------- */
-const miles = (a, b) => a.distanceTo(b) / 1609.34;
-function businesses(naics) {
+/* One row per business: latest loan, plus whether it was ever bought with an SBA loan. Charged-off businesses dropped. */
+function buildBusinesses() {
   const by = new Map();
   for (const l of loans) {
-    if (l.naics !== naics) continue;
-    const b = by.get(l.bkey) || { key: l.bkey, loans: [], latest: l };
-    b.loans.push(l);
-    if ((l.date || "") > (b.latest.date || "")) b.latest = l;
-    by.set(l.bkey, b);
+    const cat = CATS.find(c => c.codes.has(l.naics)); if (!cat) continue;
+    const b = by.get(l.bkey) || { key: l.bkey, cat: cat.id, loans: [] };
+    b.loans.push(l); by.set(l.bkey, b);
   }
-  return [...by.values()].map(b => {
-    const L0 = b.latest;
-    return { key: b.key, name: L0.name, street: L0.street, city: L0.city, state: L0.state, zip: L0.zip,
-      lat: L0.lat, lng: L0.lng, industry: L0.industry, first: L0.first, nloans: b.loans.length,
-      latest_amount: L0.amount, latest_date: L0.date, lender: L0.lender, jobs: L0.jobs,
-      longtime: L0.longtime, acquired: b.loans.some(x => x.age === ACQ),
-      chargedoff: b.loans.some(x => x.status === "Charged off"), loan: L0 };
+  return [...by.values()].filter(b => !b.loans.some(l => l.status === "Charged off")).map(b => {
+    const x = b.loans.reduce((a, l) => (l.date || "") > (a.date || "") ? l : a);
+    return { key: b.key, cat: b.cat, name: x.name, street: x.street, city: x.city, state: x.state, zip: x.zip, lat: x.lat, lng: x.lng,
+      industry: x.industry, first: x.first, amount: x.amount, date: x.date, lender: x.lender, jobs: x.jobs, longtime: x.longtime,
+      sold: b.loans.some(l => l.age === SOLD), nloans: b.loans.length };
   });
 }
-function renderScreener() {
-  clearMap();
-  const naics = $("s-ind").value, rad = +$("s-rad").value;
-  platformMarker = L.marker(platform, { icon: L.divIcon({ className: "", html: '<div class="platform-icon">Platform</div>', iconAnchor: [30, 12] }), keyboard: false }).addTo(map);
-  radiusCircle = L.circle(platform, { radius: rad * 1609.34, color: "#15202e", weight: 1.5, dashArray: "5 5", fillOpacity: .03, interactive: false }).addTo(map);
-  let rows = businesses(naics).map(b => Object.assign(b, { dist: miles(platform, L.latLng(b.lat, b.lng)) }))
-    .filter(b => b.dist <= rad);
-  if ($("s-lt").checked) rows = rows.filter(b => b.longtime);
-  if ($("s-co").checked) rows = rows.filter(b => !b.chargedoff);
-  const sort = $("s-sort").value;
-  rows.sort(sort === "first" ? (a, b) => (a.first || "").localeCompare(b.first || "") :
-            sort === "amt" ? (a, b) => (b.latest_amount || 0) - (a.latest_amount || 0) : (a, b) => a.dist - b.dist);
-  screenRows = rows;
-  for (const b of rows) dot(b.loan, { fillColor: b.longtime ? "#9a6b00" : "#1f5fbf", fillOpacity: .8, radius: 7 });
-  const ind = $("s-ind").selectedOptions[0]?.dataset.label || "";
-  $("s-count").textContent = `${rows.length} ${rows.length === 1 ? "target" : "targets"} found · ${rows.filter(r => r.longtime).length} long-time owners`;
-  $("s-list").innerHTML = rows.length ? rows.slice(0, 200).map(b => `
-    <div class="tgt">
-      <div class="top"><button class="nm" type="button" data-id="${b.loan.id}">${esc(b.name)}</button><span class="count">${b.dist.toFixed(1)} mi</span></div>
-      <div class="meta">${esc(b.city)} · since ${esc((b.first || "").slice(0, 4))} · ${money(b.latest_amount)} loan · ${b.jobs} jobs</div>
-      <div>${b.longtime ? '<span class="flag lt" title="First SBA loan 10+ years ago: a rough sign the owner may be ready to sell">Long-time owner</span>' : ""}${b.acquired ? '<span class="flag acq" title="Bought with an SBA loan">Changed hands</span>' : ""}${b.nloans > 1 ? `<span class="flag rep" title="${b.nloans} SBA loans">Repeat borrower</span>` : ""}${b.chargedoff ? '<span class="flag co">Charged off</span>' : ""}</div>
-      <div class="links">${links(b.name, b.city, b.state)}</div>
-    </div>`).join("") + (rows.length > 200 ? `<div class="mini">Showing the first 200. Export CSV for all ${rows.length}.</div>` : "")
-    : `<div class="mini" style="padding-top:8px">No ${esc(ind)} businesses within ${rad} miles. Try a wider radius.</div>`;
-  $("s-list").querySelectorAll(".nm").forEach(b => b.addEventListener("click", () => {
-    const m = markers.get(b.dataset.id); if (!m) return; map.flyTo(m.getLatLng(), 13, { duration: .5 }); setTimeout(() => m.openPopup(), 550);
-  }));
+
+function clear() { layer.clearLayers(); markers.clear(); decor.forEach(d => map.removeLayer(d)); decor = []; }
+function dot(b, color) {
+  const m = L.circleMarker([b.lat, b.lng], { radius: 7, weight: 1.5, color: "#fff", fillColor: color, fillOpacity: .85 }).bindPopup(() => card(b));
+  m.addTo(layer); markers.set(b.key, m);
 }
+
+function renderFind() {
+  clear();
+  const cat = CATS.find(c => c.id === state.cat);
+  decor.push(L.marker(platform, { icon: L.divIcon({ className: "", html: '<div class="platform-icon">Your platform</div>', iconAnchor: [44, 12] }), keyboard: false }).addTo(map));
+  decor.push(L.circle(platform, { radius: state.radius * 1609.34, color: "#15202e", weight: 1.5, dashArray: "5 5", fillOpacity: .03, interactive: false }).addTo(map));
+  shown = biz.filter(b => b.cat === state.cat).map(b => Object.assign(b, { dist: platform.distanceTo([b.lat, b.lng]) / 1609.34 }))
+    .filter(b => b.dist <= state.radius && (!state.lt || b.longtime)).sort((a, b) => a.dist - b.dist);
+  shown.forEach(b => dot(b, b.longtime ? "#9a6b00" : "#1f5fbf"));
+  $("r-count").textContent = shown.length;
+  $("r-label").textContent = `${cat.name} within ${state.radius} mi`;
+  $("key").innerHTML = '<span><i style="background:#9a6b00"></i>Long-time owner</span><span><i style="background:#1f5fbf"></i>Other</span>';
+  $("list").innerHTML = shown.length ? shown.map(b => `<div class="tgt">
+      <div class="top"><button class="nm" type="button" data-k="${b.key}">${esc(b.name)}</button><span class="dist">${b.dist.toFixed(1)} mi</span></div>
+      <div class="meta">${esc(b.city)} · SBA borrower since ${esc((b.first || "").slice(0, 4))} · ${b.jobs} jobs</div>
+      ${b.longtime || b.sold ? `<div>${flags(b)}</div>` : ""}
+      <div class="links">${links(b)}</div></div>`).join("")
+    : `<div class="mini">None within ${state.radius} miles. Try a wider radius.</div>`;
+  $("list").querySelectorAll(".nm").forEach(n => n.addEventListener("click", () => {
+    const m = markers.get(n.dataset.k); map.flyTo(m.getLatLng(), 13, { duration: .5 }); setTimeout(() => m.openPopup(), 550); }));
+}
+
+function renderMarket() {
+  clear();
+  biz.filter(b => !b.sold).forEach(b => dot(b, "#1f5fbf"));
+  biz.filter(b => b.sold).forEach(b => dot(b, "#d9480f"));
+  $("key").innerHTML = '<span><i style="background:#d9480f"></i>Sold before</span><span><i style="background:#1f5fbf"></i>Other</span>';
+}
+
+function setTab(t) {
+  state.tab = t;
+  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", String(b.id === `t-${t}`)));
+  document.querySelectorAll(".tab").forEach(p => p.classList.toggle("on", p.id === `p-${t}`));
+  if (t === "find") { renderFind(); map.flyTo(platform, state.radius > 25 ? 9 : 10, { duration: .5 }); }
+  else { renderMarket(); map.flyTo([39.03, -94.58], 9, { duration: .5 }); }
+}
+function pickCat(id) {
+  state.cat = id;
+  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.c === id)));
+  if (state.tab !== "find") setTab("find"); else renderFind();
+}
+
 function exportCsv() {
-  const cols = ["name","street","city","state","zip","industry","distance_mi","long_time_owner","first_sba_loan","sba_loans","changed_hands","latest_loan","latest_loan_date","lender","jobs","google","linkedin"];
+  const cat = CATS.find(c => c.id === state.cat);
+  const cols = ["name","street","city","state","zip","industry","distance_mi","long_time_owner","sold_before","first_sba_loan","latest_loan","latest_loan_year","lender","jobs","google_search"];
   const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const lines = [cols.join(",")].concat(screenRows.map(b => [b.name, b.street, b.city, b.state, b.zip, b.industry, b.dist.toFixed(1),
-    b.longtime ? "Y" : "N", b.first, b.nloans, b.acquired ? "Y" : "N", b.latest_amount, b.latest_date, b.lender, b.jobs,
-    `https://www.google.com/search?q=${encodeURIComponent(`${b.name} ${b.city} ${b.state}`)}`,
-    `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(b.name)}`].map(q).join(",")));
-  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const rows = shown.map(b => [b.name, b.street, b.city, b.state, b.zip, b.industry, b.dist.toFixed(1), b.longtime ? "Y" : "N", b.sold ? "Y" : "N",
+    b.first, b.amount, (b.date || "").slice(0, 4), b.lender, b.jobs, `https://www.google.com/search?q=${encodeURIComponent(`${b.name} ${b.city} ${b.state}`)}`].map(q).join(","));
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `kc-addon-targets-${$("s-ind").value}-${$("s-rad").value}mi.csv`;
+  a.href = URL.createObjectURL(new Blob([[cols.join(","), ...rows].join("\n")], { type: "text/csv" }));
+  a.download = `kc-${cat.id}-targets-${state.radius}mi.csv`;
   document.body.appendChild(a); a.click(); a.remove();
-}
-
-/* ---------- Industries ---------- */
-let iSort = { k: "operators", dir: -1 };
-function renderIndustries() {
-  const q = $("i-q").value.trim().toLowerCase();
-  const show = new Set(SHOWCASE.map(s => s[0]));
-  let rows = summary.industries.filter(g => g.operators >= 3 && (!q || g.industry.toLowerCase().includes(q)));
-  rows.sort((a, b) => iSort.k === "industry" ? iSort.dir * a.industry.localeCompare(b.industry) : iSort.dir * (a[iSort.k] - b[iSort.k]));
-  $("i-body").innerHTML = rows.slice(0, 150).map(g => `<tr data-n="${g.naics}" class="${show.has(g.naics) ? "show" : ""}" tabindex="0">
-    <td>${esc(g.industry)}</td><td>${g.operators}</td><td>${g.longtime_ops}</td><td>${g.acq}</td><td>${money(g.median)}</td></tr>`).join("");
-  $("i-body").querySelectorAll("tr").forEach(tr => {
-    const go = () => { $("s-ind").value = tr.dataset.n; setTab("screener"); };
-    tr.addEventListener("click", go); tr.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
-  });
-  document.querySelectorAll("th").forEach(th => th.toggleAttribute("aria-sort", th.dataset.k === iSort.k));
-}
-function renderIndustryMap() {
-  clearMap();
-  for (const l of loans) if (l.fy >= 2020) dot(l, { fillOpacity: .35 });
-}
-
-/* ---------- Acquisitions ---------- */
-function renderAcq() {
-  const A = summary.acquisitions, max = Math.max(...A.by_year.map(y => y.count));
-  $("a-bars").innerHTML = A.by_year.map(y => `<div class="bar"><span class="y">FY${String(y.fy).slice(2)}</span>
-    <span class="track"><span class="fill" style="display:block;width:${(y.count / max * 100).toFixed(1)}%"></span></span>
-    <span class="v">${y.count} · ${money(y.median)}</span></div>`).join("");
-  const top = summary.industries.filter(g => g.acq > 0).sort((a, b) => b.acq - a.acq).slice(0, 8);
-  $("a-ind").innerHTML = top.map(g => `<li><button class="item" type="button" data-n="${g.naics}"><span>${esc(g.industry)}</span>
-    <span class="amt">${g.acq} deals</span><span class="sub">${g.operators} operators in KC · ${money(g.acq_dollars)} financed</span></button></li>`).join("");
-  $("a-ind").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { $("s-ind").value = b.dataset.n; setTab("screener"); }));
-  $("a-lend").innerHTML = A.lenders.slice(0, 8).map(d => `<li><div class="item" style="cursor:default"><span>${esc(d.lender)}</span>
-    <span class="amt">${d.count} · ${money(d.dollars)}</span><span class="sub">Most often: ${esc(d.top_sector)}</span></div></li>`).join("");
-  clearMap();
-  for (const l of loans) if (l.age === ACQ) dot(l);
-}
-
-/* ---------- Tabs ---------- */
-function setTab(name) {
-  tab = name;
-  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", String(b.id === `t-${name}`)));
-  document.querySelectorAll(".tab").forEach(p => p.classList.toggle("on", p.id === `p-${name}` || (name === "acq" && p.id === "p-acq")));
-  if (name === "overview") renderOverview();
-  if (name === "screener") { renderScreener(); map.flyTo(platform, 9, { duration: .5 }); }
-  $("p-" + (name === "acq" ? "acq" : name)).scrollTop = 0;
-  if (name === "industries") { renderIndustries(); renderIndustryMap(); }
-  if (name === "acq") renderAcq();
-}
-document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => setTab(b.id.slice(2))));
-map.on("click", e => { if (tab === "screener") { platform = e.latlng; $("s-city").value = "custom"; renderScreener(); } });
-
-function focusLoan(id) {
-  const l = loans.find(x => x.id === id); if (!l) return;
-  $("acq").checked = false; ["sector","status","prog","q"].forEach(k => $(k).value = ""); $("size").value = "0"; $("fy").value = "";
-  setTab("overview");
-  map.flyTo([l.lat, l.lng], 14, { duration: .6 });
-  setTimeout(() => markers.get(id)?.openPopup(), 650);
 }
 
 Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/meta.json"].map(u => fetch(u).then(r => r.json())))
 .then(([L1, ch, sum, meta]) => {
-  loans = L1; summary = sum; newIds = new Set(ch.new_ids || []);
-  $("kpis").innerHTML = `
-    <div class="kpi"><b>${sum.operators.toLocaleString()}</b><span>KC businesses since 2010</span></div>
-    <div class="kpi"><b>${money(sum.dollars)}</b><span>lent since 2020</span></div>`;
+  loans = L1; biz = buildBusinesses();
 
-  const byId = new Map(loans.map(l => [l.id, l]));
-  const acq = (ch.new_acquisitions || []).map(id => byId.get(id)).filter(Boolean).sort((a, b) => b.amount - a.amount);
-  const lenders = (ch.top_lenders || []).slice(0, 3).map(([n, v]) => `${esc(n)} (${money(v)})`).join(", ");
-  const sectors = (ch.top_sectors || []).slice(0, 3).map(([n, c]) => `${esc(n)} (${c})`).join(", ");
-  $("feed").innerHTML = `
-    <div class="lead"><b>New this quarter:</b> ${ch.new_loans} loans (${money(ch.new_dollars)}), including ${acq.length} deals.</div>
-    ${acq.length ? `<ul class="list scroll">${acq.map(l => `<li><button class="item" type="button" data-id="${l.id}"><span>${esc(l.name)}</span><span class="amt">${money(l.amount)}</span><span class="sub">${esc(l.industry)} · ${esc(l.city)}</span></button></li>`).join("")}</ul>` : ""}
-    <div class="mini"><b>Top lenders:</b> ${lenders || "none"}${(ch.charge_offs || []).length ? `<br><b>New charge-offs:</b> ${ch.charge_offs.length}` : ""}</div>`;
-  $("feed").querySelectorAll("button[data-id]").forEach(b => b.addEventListener("click", () => focusLoan(b.dataset.id)));
+  $("cats").innerHTML = GROUPS.map(([g, cs]) => `<div class="group-label">${esc(g)}</div><div class="chips">${cs.map(([id, name]) =>
+    `<button class="chip" type="button" data-c="${id}" aria-pressed="${id === state.cat}">${esc(name)}</button>`).join("")}</div>`).join("");
+  document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => pickCat(c.dataset.c)));
+
+  $("city").innerHTML = CITIES.map(([n], i) => `<option value="${i}">${esc(n)}</option>`).join("") + '<option value="map">Pin on map</option>';
+  $("city").addEventListener("change", () => { const c = CITIES[+$("city").value]; if (!c) return;
+    platform = L.latLng(c[1], c[2]); renderFind(); map.flyTo(platform, state.radius > 25 ? 9 : 10, { duration: .5 }); });
+  map.on("click", e => { if (state.tab !== "find") return; platform = e.latlng; $("city").value = "map"; renderFind(); });
+  document.querySelectorAll("#radius button").forEach(b => b.addEventListener("click", () => {
+    state.radius = +b.dataset.r; document.querySelectorAll("#radius button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    renderFind(); map.flyTo(platform, state.radius > 25 ? 9 : 10, { duration: .5 }); }));
+  $("lt").addEventListener("change", () => { state.lt = $("lt").checked; renderFind(); });
+  $("csv").addEventListener("click", exportCsv);
+  document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => setTab(b.id.slice(2))));
+
+  const soldNew = (ch.new_acquisitions || []).length;
+  $("news").innerHTML = `<b>Latest SBA data (${esc(ch.asof)}):</b> ${ch.new_loans} new KC loans, and ${soldNew} businesses were bought with SBA financing.`;
+  const stats = CATS.map(c => { const bs = biz.filter(b => b.cat === c.id);
+    return { c, n: bs.length, lt: bs.filter(b => b.longtime).length, sold: bs.filter(b => b.sold).length }; }).sort((a, b) => b.n - a.n);
+  $("market").innerHTML = stats.map(s => `<tr data-c="${s.c.id}" tabindex="0"><td>${esc(s.c.name)}</td><td>${s.n}</td><td>${s.lt}</td><td>${s.sold}</td><td><span class="go">View ›</span></td></tr>`).join("");
+  $("market").querySelectorAll("tr").forEach(tr => { tr.addEventListener("click", () => pickCat(tr.dataset.c));
+    tr.addEventListener("keydown", e => { if (e.key === "Enter") pickCat(tr.dataset.c); }); });
+  const yrs = sum.acquisitions.by_year, max = Math.max(...yrs.map(y => y.count));
+  $("bars").innerHTML = yrs.map(y => `<div class="bar"><span class="y">FY${String(y.fy).slice(2)}</span><span class="track"><span class="fill" style="width:${(y.count / max * 100).toFixed(1)}%"></span></span><span class="v">${y.count} · ${money(y.median)}</span></div>`).join("");
 
   const last = (meta.runs || [])[0];
-  $("updated").textContent = `Data as of ${ch.asof}; checked monthly${last ? `, last ${last.ran_at.slice(0, 10)}` : ""}.`;
-
-  const opts = (id, vals) => vals.forEach(v => $(id).insertAdjacentHTML("beforeend", `<option>${esc(v)}</option>`));
-  opts("sector", Object.keys(sum.by_sector).filter(s => s !== "Other").sort());
-  opts("fy", [...new Set(loans.map(l => l.fy))].sort((a, b) => b - a));
-  opts("status", [...new Set(loans.map(l => l.status))].sort());
-
-  const inds = sum.industries.filter(g => g.operators >= 3);
-  const showIds = new Set(SHOWCASE.map(s => s[0]));
-  $("s-ind").innerHTML = `<optgroup label="Common roll-ups">${SHOWCASE.map(([n, lab]) => {
-      const g = sum.industries.find(x => x.naics === n); return g ? `<option value="${n}" data-label="${esc(lab)}">${esc(g.industry)} (${g.operators})</option>` : ""; }).join("")}</optgroup>
-    <optgroup label="All industries (most businesses first)">${inds.filter(g => !showIds.has(g.naics)).map(g =>
-      `<option value="${g.naics}" data-label="${esc(g.industry)}">${esc(g.industry)} (${g.operators})</option>`).join("")}</optgroup>`;
-  $("s-city").innerHTML = CITIES.map(([n], i) => `<option value="${i}">${esc(n)}</option>`).join("") + '<option value="custom">Custom (click the map)</option>';
-  $("s-city").addEventListener("change", () => {
-    const c = CITIES[+$("s-city").value]; if (!c) return;
-    platform = L.latLng(c[1], c[2]); renderScreener(); map.flyTo(platform, 9, { duration: .5 }); });
-  ["acq","sector","size","fy","status","prog"].forEach(id => $(id).addEventListener("change", renderOverview));
-  $("q").addEventListener("input", renderOverview);
-  ["s-ind","s-rad","s-sort","s-lt","s-co"].forEach(id => $(id).addEventListener("change", renderScreener));
-  $("s-csv").addEventListener("click", exportCsv);
-  $("i-q").addEventListener("input", renderIndustries);
-  document.querySelectorAll("th").forEach(th => th.addEventListener("click", () => {
-    iSort = { k: th.dataset.k, dir: iSort.k === th.dataset.k ? -iSort.dir : (th.dataset.k === "industry" ? 1 : -1) }; renderIndustries(); }));
-
-  const start = location.hash.slice(1);
-  setTab(["overview","industries","acq"].includes(start) ? start : "screener");
+  $("updated").textContent = `Data as of ${ch.asof}, checked monthly${last ? ` (last ${last.ran_at.slice(0, 10)})` : ""}.`;
+  setTab(location.hash === "#market" ? "market" : "find");
 })
-.catch(e => { $("feed").innerHTML = `<div class="mini">Couldn't load the data files (${esc(e.message)}). Open this page from GitHub Pages or a local web server.</div>`; });
+.catch(e => { $("list").innerHTML = `<div class="mini">Couldn't load the data (${esc(e.message)}).</div>`; });
 </script>
 </body>
 </html>

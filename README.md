@@ -1,4 +1,4 @@
-# KC Small Business Lending Map
+# KC Roll-Up Target Finder
 
 Every SBA 7(a) and 504 loan to a Kansas City metro business since FY2020, on one map, refreshed automatically.
 
