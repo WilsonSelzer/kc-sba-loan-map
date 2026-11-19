@@ -7,7 +7,7 @@ Every SBA 7(a) and 504 loan to a Kansas City metro business since FY2020, on one
 ## What it shows
 A sourcing tool for roll-up and lower middle market private equity, built on every SBA 7(a) and 504 loan to a Kansas City metro business since FY2010.
 
-- **Find targets:** pick one of 13 common roll-up categories (HVAC & plumbing, dental, vet, landscaping and others), a platform location and a radius. Get every SBA-financed business nearby, flagged for long-time owners (first SBA loan 10+ years ago, a rough succession signal) and businesses that have sold before. Export to CSV.
+- **Find targets:** pick one of 13 common roll-up categories (HVAC & plumbing, dental, vet, landscaping and others), a platform location and a radius. Get every SBA-financed business nearby, flagged for long-time owners (first SBA loan 10+ years ago, a rough succession signal) and businesses that have sold before. Export to Excel.
 - **Market:** businesses, long-time owners and past sales by category, plus businesses sold per year with median deal loan.
 
 ## How it runs

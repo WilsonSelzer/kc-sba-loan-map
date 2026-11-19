@@ -49,6 +49,7 @@ select { font: inherit; color: var(--ink); background: var(--panel); border: 1px
 .results-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .results-head b { font-family: var(--display); font-size: 20px; }
 .results-head span { color: var(--muted); font-size: 13px; }
+.btn:disabled { opacity: .6; cursor: wait; }
 .btn { font: 500 13px var(--body); color: #fff; background: var(--ink); border: 0; border-radius: 6px; padding: 7px 12px; cursor: pointer; white-space: nowrap; }
 .toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 .toggle input { width: 16px; height: 16px; accent-color: var(--gold); }
@@ -90,7 +91,8 @@ th { white-space: nowrap; }
 .pop dt { color: var(--muted); }
 .pop dd { margin: 0; }
 .pop .links { display: flex; gap: 10px; font-size: 12px; }
-.platform-icon { background: var(--ink); color: #fff; border: 2px solid #fff; border-radius: 4px; font: 600 11px var(--body); padding: 2px 6px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+.platform-icon { background: var(--ink); color: #fff; border: 2px solid #fff; border-radius: 4px; font: 600 12px var(--body); padding: 4px 8px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,.35); cursor: grab; }
+.leaflet-dragging .platform-icon { cursor: grabbing; }
 .map-key { background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 10px; font: 12px var(--body); color: var(--muted); display: flex; gap: 12px; }
 .map-key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 @media (max-width: 760px) {
@@ -117,7 +119,7 @@ th { white-space: nowrap; }
     </div>
     <div>
       <div class="step-title"><span class="n">2</span>Where's your platform?</div>
-      <div class="where"><select id="city" aria-label="Platform location"></select><span class="or">or click the map</span></div>
+      <div class="where"><select id="city" aria-label="Platform location"></select><span class="or">or drag the pin</span></div>
     </div>
     <div>
       <div class="step-title"><span class="n">3</span>How far will you go?</div>
@@ -130,7 +132,7 @@ th { white-space: nowrap; }
     <div class="results">
       <div class="results-head">
         <div><b id="r-count">0</b> <span id="r-label">targets</span></div>
-        <button class="btn" id="csv" type="button">Export CSV</button>
+        <button class="btn" id="xlsx" type="button">Export to Excel</button>
       </div>
       <label class="toggle" for="sbaonly"><input type="checkbox" id="sbaonly"> SBA borrowers only</label>
       <label class="toggle" for="lt"><input type="checkbox" id="lt"> Long-time owners only <span class="mini">(first SBA loan 10+ years ago)</span></label>
@@ -226,7 +228,7 @@ function buildBusinesses() {
     if (p.chain || (p.sba && dead.has(p.sba))) continue;
     const s = p.sba && sba.get(p.sba);
     const row = { key: "p" + out.length, cat: p.cat, name: p.name, street: p.street, city: p.city, state: p.state, zip: p.zip,
-      lat: p.lat, lng: p.lng, industry: p.category.replace(/_/g, " "), phone: p.phone, website: p.website, locations: p.locations || 1, isSba: false };
+      lat: p.lat, lng: p.lng, industry: (t => t.charAt(0).toUpperCase() + t.slice(1))(p.category.replace(/_/g, " ")), phone: p.phone, website: p.website, locations: p.locations || 1, isSba: false };
     if (s) { Object.assign(row, { isSba: true, first: s.first, amount: s.amount, date: s.date, lender: s.lender, jobs: s.jobs,
       longtime: s.longtime, sold: s.sold, cat: row.cat }); sba.delete(p.sba); }
     out.push(row);
@@ -243,8 +245,12 @@ function dot(b, color) {
 function renderFind() {
   clear();
   const cat = CATS.find(c => c.id === state.cat);
-  decor.push(L.marker(platform, { icon: L.divIcon({ className: "", html: '<div class="platform-icon">Your platform</div>', iconAnchor: [44, 12] }), keyboard: false }).addTo(map));
-  decor.push(L.circle(platform, { radius: state.radius * 1609.34, color: "#15202e", weight: 1.5, dashArray: "5 5", fillOpacity: .03, interactive: false }).addTo(map));
+  const pin = L.marker(platform, { draggable: true, autoPan: true, zIndexOffset: 1000, title: "Drag to move your platform",
+    icon: L.divIcon({ className: "", html: '<div class="platform-icon">✥ Your platform</div>', iconAnchor: [52, 12] }) }).addTo(map);
+  const ring = L.circle(platform, { radius: state.radius * 1609.34, color: "#15202e", weight: 1.5, dashArray: "5 5", fillOpacity: .03, interactive: false }).addTo(map);
+  pin.on("drag", e => ring.setLatLng(e.target.getLatLng()));
+  pin.on("dragend", e => { platform = e.target.getLatLng(); $("city").value = "map"; renderFind(); });
+  decor.push(pin, ring);
   shown = biz.filter(b => b.cat === state.cat).map(b => Object.assign(b, { dist: platform.distanceTo([b.lat, b.lng]) / 1609.34 }))
     .filter(b => b.dist <= state.radius && (!state.lt || b.longtime) && (!state.sba || b.isSba)).sort((a, b) => a.dist - b.dist);
   shown.filter(b => !b.isSba).forEach(b => dot(b, "#9aa3ae"));
@@ -256,7 +262,7 @@ function renderFind() {
       <div class="top"><button class="nm" type="button" data-k="${b.key}">${esc(b.name)}</button><span class="dist">${b.dist.toFixed(1)} mi</span></div>
       <div class="meta">${esc(b.city)}${b.phone ? ` · ${esc(phone(b.phone))}` : ""}${b.isSba ? ` · SBA since ${esc((b.first || "").slice(0, 4))}` : ""}</div>
       ${flags(b) ? `<div>${flags(b)}</div>` : ""}
-      <div class="links">${links(b)}</div></div>`).join("") + (shown.length > 300 ? `<div class="mini" style="padding-top:8px">Showing the closest 300. Export CSV for all ${shown.length.toLocaleString()}.</div>` : "")
+      <div class="links">${links(b)}</div></div>`).join("") + (shown.length > 300 ? `<div class="mini" style="padding-top:8px">Showing the closest 300. Export to Excel for all ${shown.length.toLocaleString()}.</div>` : "")
     : `<div class="mini">None within ${state.radius} miles. Try a wider radius.</div>`;
   $("list").querySelectorAll(".nm").forEach(n => n.addEventListener("click", () => {
     const m = markers.get(n.dataset.k); map.flyTo(m.getLatLng(), 13, { duration: .5 }); setTimeout(() => m.openPopup(), 550); }));
@@ -282,17 +288,123 @@ function pickCat(id) {
   if (state.tab !== "find") setTab("find"); else renderFind();
 }
 
-function exportCsv() {
-  const cat = CATS.find(c => c.id === state.cat);
-  const cols = ["name","street","city","state","zip","phone","website","type","distance_mi","sba_borrower","long_time_owner","sold_before","first_sba_loan","latest_loan","latest_loan_year","lender","jobs","locations","google_search"];
-  const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const rows = shown.map(b => [b.name, b.street, b.city, b.state, b.zip, phone(b.phone), site(b.website), b.industry, b.dist.toFixed(1), b.isSba ? "Y" : "N",
-    b.longtime ? "Y" : "N", b.sold ? "Y" : "N", b.first, b.amount, (b.date || "").slice(0, 4), b.lender, b.jobs, b.locations, `https://www.google.com/search?q=${encodeURIComponent(`${b.name} ${b.city} ${b.state}`)}`].map(q).join(","));
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([[cols.join(","), ...rows].join("\n")], { type: "text/csv" }));
-  a.download = `kc-${cat.id}-targets-${state.radius}mi.csv`;
-  document.body.appendChild(a); a.click(); a.remove();
+/* Excel export. ExcelJS loads on first click so the page stays light. */
+let excelReady = null;
+function loadExcel() {
+  if (window.ExcelJS) return Promise.resolve();
+  return excelReady ||= new Promise((ok, fail) => {
+    const t = document.createElement("script");
+    t.src = "https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js";
+    t.onload = ok; t.onerror = () => { excelReady = null; fail(new Error("Couldn't load the Excel library")); };
+    document.head.appendChild(t);
+  });
 }
+const toDate = v => v && /^\d{4}-\d{2}-\d{2}/.test(v) ? new Date(`${v.slice(0, 10)}T12:00:00`) : null;
+
+async function exportExcel() {
+  const btn = $("xlsx"), label = btn.textContent;
+  btn.disabled = true; btn.textContent = "Preparing…";
+  try {
+    await loadExcel();
+    const cat = CATS.find(c => c.id === state.cat);
+    const where = $("city").value === "map" ? `Pin at ${platform.lat.toFixed(4)}, ${platform.lng.toFixed(4)}` : CITIES[+$("city").value][0];
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "KC Roll-Up Target Finder"; wb.created = new Date();
+
+    const ws = wb.addWorksheet("Targets", { views: [{ state: "frozen", ySplit: 1 }], properties: { defaultRowHeight: 18 } });
+    ws.columns = [
+      { header: "Business", key: "name", width: 36 },
+      { header: "Address", key: "street", width: 32 },
+      { header: "City", key: "city", width: 17 },
+      { header: "State", key: "state", width: 7 },
+      { header: "ZIP", key: "zip", width: 8 },
+      { header: "Phone", key: "phone", width: 16 },
+      { header: "Website", key: "website", width: 11 },
+      { header: "Miles from platform", key: "dist", width: 11, style: { numFmt: "0.0" } },
+      { header: "Type", key: "type", width: 26 },
+      { header: "SBA borrower", key: "sba", width: 10 },
+      { header: "Long-time owner", key: "lt", width: 11 },
+      { header: "Sold before", key: "sold", width: 9 },
+      { header: "First SBA loan", key: "first", width: 13, style: { numFmt: "mmm yyyy" } },
+      { header: "Latest SBA loan", key: "amount", width: 14, style: { numFmt: '"$"#,##0' } },
+      { header: "Loan date", key: "date", width: 12, style: { numFmt: "mmm yyyy" } },
+      { header: "SBA lender", key: "lender", width: 30 },
+      { header: "Jobs (SBA)", key: "jobs", width: 9 },
+      { header: "Locations", key: "locs", width: 9 },
+      { header: "Look up", key: "google", width: 10 },
+    ];
+    for (const b of shown) {
+      const url = site(b.website);
+      const row = ws.addRow({
+        name: b.name, street: b.street, city: b.city, state: b.state, zip: b.zip, phone: phone(b.phone),
+        website: url ? { text: "Website", hyperlink: url } : "", dist: Math.round(b.dist * 10) / 10, type: b.industry,
+        sba: b.isSba ? "Yes" : "", lt: b.longtime ? "Yes" : "", sold: b.sold ? "Yes" : "",
+        first: b.isSba ? toDate(b.first) : null, amount: b.isSba ? b.amount : null, date: b.isSba ? toDate(b.date) : null,
+        lender: b.isSba ? b.lender : "", jobs: b.isSba ? b.jobs : null, locs: b.locations || 1,
+        google: { text: "Google", hyperlink: `https://www.google.com/search?q=${encodeURIComponent(`${b.name} ${b.city} ${b.state}`)}` },
+      });
+      ["website", "google"].forEach(k => { const c = row.getCell(k); if (c.value) c.font = { color: { argb: "FF1F5FBF" }, underline: true }; });
+      if (b.longtime) row.getCell("lt").font = { bold: true, color: { argb: "FF9A6B00" } };
+      if (b.sold) row.getCell("sold").font = { bold: true, color: { argb: "FFD9480F" } };
+    }
+    const head = ws.getRow(1);
+    head.height = 32;
+    head.eachCell(c => {
+      c.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF15202E" } };
+      c.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+    });
+    ws.eachRow((r, i) => { if (i > 1) r.alignment = { vertical: "middle" }; });
+    ["sba", "lt", "sold", "state", "zip", "locs", "jobs"].forEach(k => ws.getColumn(k).alignment = { horizontal: "center", vertical: "middle" });
+    head.eachCell(c => c.alignment = { vertical: "middle", horizontal: "left", wrapText: true });
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columns.length } };
+    // size text columns to their longest value, within limits, so nothing is cut off or overly wide
+    const caps = { name: [18, 55], street: [16, 42], city: [10, 24], type: [12, 40], lender: [12, 42] };
+    for (const [k, [lo, hi]] of Object.entries(caps)) {
+      let w = ws.getColumn(k).header.length;
+      ws.getColumn(k).eachCell({ includeEmpty: false }, (c, i) => { if (i > 1) w = Math.max(w, String(c.value ?? "").length); });
+      ws.getColumn(k).width = Math.min(hi, Math.max(lo, w + 2));
+    }
+    ws.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: .3, right: .3, top: .4, bottom: .4, header: .2, footer: .2 } };
+    ws.pageSetup.printTitlesRow = "1:1";
+
+    const about = wb.addWorksheet("About this list");
+    about.columns = [{ width: 24 }, { width: 80 }];
+    const meta = [
+      ["KC Roll-Up Target Finder", ""],
+      ["", ""],
+      ["Category", cat.name],
+      ["Platform location", where],
+      ["Radius", `${state.radius} miles`],
+      ["Filters", [state.sba && "SBA borrowers only", state.lt && "Long-time owners only"].filter(Boolean).join(", ") || "None"],
+      ["Businesses", shown.length],
+      ["Exported", new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })],
+      ["SBA data as of", $("updated").dataset.asof || ""],
+      ["", ""],
+      ["Long-time owner", "First SBA loan 10+ years ago. A rough sign the owner may be nearing a sale."],
+      ["Sold before", "The business was bought with an SBA loan (tracked since FY2018)."],
+      ["Miles from platform", "Straight-line distance. SBA-only businesses are placed by ZIP code, so their distance is approximate."],
+      ["Excluded", "Franchises and chains, and businesses with a charged-off SBA loan."],
+      ["Sources", "Business listings: Overture Maps (CDLA-Permissive-2.0). Loan history: SBA 7(a) and 504 public FOIA data."],
+    ];
+    meta.forEach(r => about.addRow(r));
+    about.getCell("A1").font = { bold: true, size: 14 };
+    about.eachRow((r, i) => { if (i > 2) { r.getCell(1).font = { bold: true }; r.getCell(2).alignment = { wrapText: true, vertical: "top" }; r.getCell(1).alignment = { vertical: "top" }; } });
+
+    const buf = await wb.xlsx.writeBuffer();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const today = new Date().toISOString().slice(0, 10);
+    a.download = `KC ${cat.name.replace(/&/g, "and").replace(/[^A-Za-z0-9 ]/g, "")} targets ${state.radius}mi ${today}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch (e) {
+    alertBox(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = label;
+  }
+}
+function alertBox(msg) { $("list").insertAdjacentHTML("afterbegin", `<div class="mini" style="color:#b42318">${esc(msg)}. Check your connection and try again.</div>`); }
 
 Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/meta.json", "data/places.json"].map(u =>
   fetch(u).then(r => r.ok ? r.json() : []).catch(() => [])))
@@ -303,7 +415,7 @@ Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/
     `<button class="chip" type="button" data-c="${id}" aria-pressed="${id === state.cat}">${esc(name)}</button>`).join("")}</div>`).join("");
   document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => pickCat(c.dataset.c)));
 
-  $("city").innerHTML = CITIES.map(([n], i) => `<option value="${i}">${esc(n)}</option>`).join("") + '<option value="map">Pin on map</option>';
+  $("city").innerHTML = CITIES.map(([n], i) => `<option value="${i}">${esc(n)}</option>`).join("") + '<option value="map">Custom (dragged pin)</option>';
   $("city").addEventListener("change", () => { const c = CITIES[+$("city").value]; if (!c) return;
     platform = L.latLng(c[1], c[2]); renderFind(); map.flyTo(platform, state.radius > 25 ? 9 : 10, { duration: .5 }); });
   map.on("click", e => { if (state.tab !== "find") return; platform = e.latlng; $("city").value = "map"; renderFind(); });
@@ -312,7 +424,7 @@ Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/
     renderFind(); map.flyTo(platform, state.radius > 25 ? 9 : 10, { duration: .5 }); }));
   $("lt").addEventListener("change", () => { state.lt = $("lt").checked; renderFind(); });
   $("sbaonly").addEventListener("change", () => { state.sba = $("sbaonly").checked; renderFind(); });
-  $("csv").addEventListener("click", exportCsv);
+  $("xlsx").addEventListener("click", exportExcel);
   document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => setTab(b.id.slice(2))));
 
   const soldNew = (ch.new_acquisitions || []).length;
@@ -326,6 +438,7 @@ Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/
   $("bars").innerHTML = yrs.map(y => `<div class="bar"><span class="y">FY${String(y.fy).slice(2)}</span><span class="track"><span class="fill" style="width:${(y.count / max * 100).toFixed(1)}%"></span></span><span class="v">${y.count} · ${money(y.median)}</span></div>`).join("");
 
   const last = (meta.runs || [])[0];
+  $("updated").dataset.asof = ch.asof;
   $("updated").textContent = `Data as of ${ch.asof}, checked monthly${last ? ` (last ${last.ran_at.slice(0, 10)})` : ""}.`;
   setTab(location.hash === "#market" ? "market" : "find");
 })
