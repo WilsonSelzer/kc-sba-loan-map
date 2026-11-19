@@ -96,12 +96,15 @@ def parse():
                     except ValueError:
                         pass
             seen += 1
-            cats = p.get("categories") or {}
-            prim = (cats.get("primary") or "") if isinstance(cats, dict) else ""
-            alts = (cats.get("alternate") or []) if isinstance(cats, dict) else []
+            tax = p.get("taxonomy") if isinstance(p.get("taxonomy"), dict) else {}
+            cats = p.get("categories") if isinstance(p.get("categories"), dict) else {}
+            prim = tax.get("primary") or cats.get("primary") or ""
+            alts = list(tax.get("alternates") or []) + list(cats.get("alternate") or []) + list(tax.get("hierarchy") or [])
             basic = p.get("basic_category") or ""
             allcats[prim or basic or "none"] += 1
-            cid = category_for([prim, basic] + list(alts))
+            if seen == 1:
+                log("sample property keys: " + ", ".join(sorted(p.keys())))
+            cid = category_for([prim] + alts)
             if not cid or (p.get("confidence") or 0) < 0.5:
                 continue
             lng, lat = feat["geometry"]["coordinates"][:2]
@@ -109,10 +112,10 @@ def parse():
             if not name:
                 continue
             out.append({
-                "pid": p.get("id"), "name": name, "cat": cid, "category": prim or basic,
+                "pid": p.get("id") or feat.get("id"), "name": name, "cat": cid, "category": prim or basic,
                 "lat": round(lat, 5), "lng": round(lng, 5),
                 "street": first(p, "addresses", "freeform") or "", "city": (first(p, "addresses", "locality") or "").title(),
-                "state": first(p, "addresses", "region") or "", "zip": str(first(p, "addresses", "postcode") or "")[:5],
+                "state": (first(p, "addresses", "region") or "").replace("US-", ""), "zip": str(first(p, "addresses", "postcode") or "")[:5],
                 "phone": first(p, "phones") or "", "website": first(p, "websites") or "",
                 "brand": first(p, "brand", "names", "primary") or "",
                 "conf": round(p.get("confidence") or 0, 2),
