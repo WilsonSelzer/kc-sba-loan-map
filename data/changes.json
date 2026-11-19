@@ -115,7 +115,14 @@
   "b9c404d75359",
   "3458580d6a5a"
  ],
- "status_changes": [],
+ "status_changes": [
+  {
+   "id": "9795e96d650a",
+   "name": "RLM Underground LLC",
+   "from": "Active",
+   "to": "Paid in full"
+  }
+ ],
  "charge_offs": [],
  "top_lenders": [
   [

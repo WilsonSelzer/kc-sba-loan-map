@@ -10,201 +10,414 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  /* Layout: operator console. Fixed left rail of controls and the quarterly feed; map fills the rest. */
-  --bg: #f3f4f6; --panel: #ffffff; --ink: #15202e; --muted: #5a6575; --rule: #dde1e7;
-  --accent: #d9480f;      /* acquisitions */
-  --base: #1f5fbf;        /* all other loans */
+  /* Layout: operator console. Left rail with four tabs (overview, screener, industries, acquisitions); map fills the rest. */
+  --bg: #f3f4f6; --panel: #ffffff; --ink: #15202e; --muted: #5a6575; --rule: #dde1e7; --soft: #f6f7f9;
+  --accent: #d9480f; --accent-soft: #fff4ee; --base: #1f5fbf; --base-soft: #eaf1fb; --gold: #9a6b00;
   --display: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
   --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 14px; display: grid; grid-template-columns: 380px 1fr; }
-aside { height: 100%; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--rule); padding: 20px 20px 28px; display: flex; flex-direction: column; gap: 18px; }
-#map { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 14px; display: grid; grid-template-columns: 440px 1fr; }
+aside { height: 100%; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--rule); display: flex; flex-direction: column; }
+.head { padding: 18px 20px 0; }
 .kicker { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
-h1 { font-family: var(--display); font-size: 27px; line-height: 1.05; margin: 4px 0 6px; text-wrap: balance; }
-.lede { margin: 0; color: var(--muted); line-height: 1.5; }
+h1 { font-family: var(--display); font-size: 26px; line-height: 1.05; margin: 4px 0 6px; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); line-height: 1.5; font-size: 13.5px; }
+nav { display: flex; gap: 2px; padding: 14px 20px 0; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--panel); z-index: 5; }
+nav button { font: 500 13px var(--body); color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 10px 9px; cursor: pointer; }
+nav button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+nav button:focus-visible { outline: 2px solid var(--base); outline-offset: -2px; }
+.tab { padding: 16px 20px 24px; display: none; flex-direction: column; gap: 16px; }
+.tab.on { display: flex; }
+h2 { font-family: var(--display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
 .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
 .kpi { background: var(--panel); padding: 10px 12px; }
 .kpi b { display: block; font-family: var(--display); font-size: 22px; font-variant-numeric: tabular-nums; }
 .kpi span { font-size: 12px; color: var(--muted); }
 .kpi.acq b { color: var(--accent); }
-h2 { font-family: var(--display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
 .filters { display: grid; gap: 10px; }
 label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
 select, input[type=search] { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 8px; width: 100%; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); background: #fff4ee; border: 1px solid #f6c9b3; border-radius: 4px; padding: 8px 10px; cursor: pointer; }
-.toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink); cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); }
+.toggle { background: var(--accent-soft); border: 1px solid #f6c9b3; border-radius: 4px; padding: 8px 10px; }
 .count { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .feed { border: 1px solid var(--rule); border-left: 3px solid var(--accent); padding: 12px; display: grid; gap: 8px; }
-.feed .head { font-size: 13px; line-height: 1.45; }
-.feed .head b { font-variant-numeric: tabular-nums; }
-.feed ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 230px; overflow-y: auto; }
-.feed li button { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 8px; width: 100%; padding: 5px 4px; border-radius: 3px; font-size: 13px; }
-.feed li button:hover, .feed li button:focus-visible { background: #fff4ee; outline: none; }
-.feed li .amt { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-.feed li .sub { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); margin-top: -2px; }
+.feed .lead { font-size: 13px; line-height: 1.45; }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.list.scroll { max-height: 230px; overflow-y: auto; }
+.item { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; width: 100%; padding: 6px 6px; border-radius: 3px; font-size: 13px; }
+.item:hover, .item:focus-visible { background: var(--accent-soft); outline: none; }
+.item .amt { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: right; }
+.item .sub { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); }
 .mini { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
 .mini b { color: var(--ink); font-weight: 500; }
 .runs { font-family: var(--mono); font-size: 11.5px; color: var(--muted); display: grid; gap: 3px; }
-.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
-.foot { font-size: 11.5px; color: var(--muted); line-height: 1.5; margin-top: auto; }
-.foot a { color: var(--base); }
-.pop { font-family: var(--body); font-size: 13px; min-width: 230px; }
-.pop .n { font-family: var(--display); font-size: 17px; line-height: 1.15; margin-bottom: 2px; }
-.pop .tag { display: inline-block; background: #fff4ee; color: var(--accent); font-size: 11px; padding: 1px 6px; border-radius: 3px; margin: 2px 0 6px; }
-.pop dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0 0; }
+.foot { font-size: 11.5px; color: var(--muted); line-height: 1.5; padding: 0 20px 20px; margin-top: auto; }
+a { color: var(--base); }
+.btn { font: 500 13px var(--body); color: #fff; background: var(--ink); border: 0; border-radius: 4px; padding: 7px 12px; cursor: pointer; }
+.btn.ghost { color: var(--ink); background: var(--panel); border: 1px solid var(--rule); }
+.btn:focus-visible { outline: 2px solid var(--base); outline-offset: 2px; }
+.callout { background: var(--soft); border: 1px solid var(--rule); border-radius: 4px; padding: 10px 12px; font-size: 13px; line-height: 1.45; }
+.examples { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 500 12px var(--body); color: var(--accent); background: var(--accent-soft); border: 1px solid #f6c9b3; border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tgt { border-bottom: 1px solid var(--rule); padding: 8px 2px; display: grid; gap: 3px; }
+.tgt .top { display: flex; justify-content: space-between; gap: 8px; }
+.tgt .nm { all: unset; cursor: pointer; font-weight: 600; font-size: 13.5px; }
+.tgt .nm:hover, .tgt .nm:focus-visible { color: var(--accent); text-decoration: underline; }
+.tgt .meta { font-size: 12px; color: var(--muted); }
+.tgt .links { font-size: 12px; display: flex; gap: 10px; }
+.flag { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 3px; margin-right: 4px; }
+.flag.lt { background: #fbf3dc; color: var(--gold); }
+.flag.acq { background: var(--accent-soft); color: var(--accent); }
+.flag.co { background: #fde8e8; color: #b42318; }
+.flag.rep { background: var(--base-soft); color: var(--base); }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+th { text-align: right; font-weight: 500; color: var(--muted); padding: 6px 4px; border-bottom: 1px solid var(--ink); cursor: pointer; user-select: none; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th[aria-sort] { color: var(--ink); }
+td { text-align: right; padding: 6px 4px; border-bottom: 1px solid var(--rule); }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--accent-soft); }
+tr.show td:first-child { font-weight: 600; }
+.bars { display: grid; gap: 4px; }
+.bar { display: grid; grid-template-columns: 44px 1fr 92px; align-items: center; gap: 8px; font-size: 12px; }
+.bar .y { font-family: var(--mono); color: var(--muted); }
+.bar .track { height: 14px; background: var(--soft); border-radius: 2px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--accent); }
+.bar .v { font-family: var(--mono); text-align: right; color: var(--muted); }
+#map { height: 100%; }
+.pop { font-family: var(--body); font-size: 13px; min-width: 240px; }
+.pop .n { font-family: var(--display); font-size: 17px; line-height: 1.15; margin-bottom: 4px; }
+.pop dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0; }
 .pop dt { color: var(--muted); }
 .pop dd { margin: 0; }
+.pop .links { display: flex; gap: 10px; font-size: 12px; }
+.platform-icon { background: var(--ink); color: #fff; border: 2px solid #fff; border-radius: 4px; font: 600 11px var(--body); padding: 2px 6px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
 @media (max-width: 760px) {
-  body { grid-template-columns: 1fr; grid-template-rows: 55% 45%; }
+  body { grid-template-columns: 1fr; grid-template-rows: 50% 50%; }
   aside { order: 2; border-right: none; border-top: 1px solid var(--rule); }
 }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
 </head>
 <body>
 <aside>
-  <div>
-    <div class="kicker">SBA 7(a) &amp; 504 loans · Kansas City metro · FY2020 to date</div>
+  <div class="head">
+    <div class="kicker">SBA 7(a) &amp; 504 loans · Kansas City metro · FY2010 to date</div>
     <h1>KC Small Business Lending Map</h1>
-    <p class="lede">Every SBA-backed loan to a Kansas City business since 2020, refreshed automatically when SBA publishes new data. Orange marks loans used to buy an existing business.</p>
+    <p class="lede">Every SBA-backed loan to a Kansas City business since 2010, refreshed automatically when SBA publishes new data. Built as a sourcing tool for roll-up and lower middle market PE.</p>
   </div>
+  <nav role="tablist" aria-label="Views">
+    <button role="tab" id="t-overview" aria-controls="p-overview" aria-selected="true">Overview</button>
+    <button role="tab" id="t-screener" aria-controls="p-screener" aria-selected="false">Add-on screener</button>
+    <button role="tab" id="t-industries" aria-controls="p-industries" aria-selected="false">Industries</button>
+    <button role="tab" id="t-acq" aria-controls="p-acq" aria-selected="false">Acquisitions</button>
+  </nav>
 
-  <div class="kpis" id="kpis"></div>
-
-  <section>
-    <h2>What changed this quarter</h2>
-    <div class="feed" id="feed"><div class="mini">Loading…</div></div>
-  </section>
-
-  <section class="filters">
-    <h2>Filter</h2>
-    <label class="toggle" for="acq"><input type="checkbox" id="acq"> Business acquisitions only</label>
-    <label for="sector">Industry
-      <select id="sector"><option value="">All industries</option></select></label>
-    <div class="row">
-      <label for="size">Loan size
-        <select id="size">
-          <option value="0">Any size</option>
-          <option value="500000">$500K+</option>
-          <option value="1000000">$1M+</option>
-          <option value="2500000">$2.5M+</option>
-        </select></label>
-      <label for="fy">Fiscal year
-        <select id="fy"><option value="">All years</option></select></label>
+  <section class="tab on" id="p-overview" role="tabpanel" aria-labelledby="t-overview">
+    <div class="kpis" id="kpis"></div>
+    <div>
+      <h2>What changed this quarter</h2>
+      <div class="feed" id="feed"><div class="mini">Loading…</div></div>
     </div>
-    <div class="row">
-      <label for="status">Status
-        <select id="status"><option value="">Any status</option></select></label>
-      <label for="prog">Program
-        <select id="prog"><option value="">7(a) and 504</option><option>7(a)</option><option>504</option></select></label>
+    <div class="filters">
+      <h2>Filter the map</h2>
+      <label class="check toggle" for="acq"><input type="checkbox" id="acq"> Business acquisitions only</label>
+      <label for="sector">Sector <select id="sector"><option value="">All sectors</option></select></label>
+      <div class="row">
+        <label for="size">Loan size
+          <select id="size"><option value="0">Any size</option><option value="500000">$500K+</option><option value="1000000">$1M+</option><option value="2500000">$2.5M+</option></select></label>
+        <label for="fy">Fiscal year
+          <select id="fy"><option value="recent">FY2020 to date</option><option value="">All since FY2010</option></select></label>
+      </div>
+      <div class="row">
+        <label for="status">Status <select id="status"><option value="">Any status</option></select></label>
+        <label for="prog">Program <select id="prog"><option value="">7(a) and 504</option><option>7(a)</option><option>504</option></select></label>
+      </div>
+      <label for="q">Search business, lender or franchise <input type="search" id="q" placeholder="e.g. HVAC, OakStar, Jersey Mike's"></label>
+      <div class="count" id="count"></div>
+      <div class="legend"><span><i class="dot" style="background:var(--accent)"></i>Acquisition</span><span><i class="dot" style="background:var(--base)"></i>Other loan</span><span>Size = loan amount</span></div>
     </div>
-    <label for="q">Search business, lender or franchise
-      <input type="search" id="q" placeholder="e.g. HVAC, OakStar, Jersey Mike's"></label>
-    <div class="count" id="count"></div>
-    <div class="legend"><span><i class="dot" style="background:var(--accent)"></i>Acquisition</span><span><i class="dot" style="background:var(--base)"></i>Other loan</span><span>Size = loan amount</span></div>
+    <div>
+      <h2>Pipeline runs</h2>
+      <div class="runs" id="runs"></div>
+    </div>
   </section>
 
-  <section>
-    <h2>Pipeline runs</h2>
-    <div class="runs" id="runs"></div>
+  <section class="tab" id="p-screener" role="tabpanel" aria-labelledby="t-screener">
+    <div class="callout">Pick an industry, then <b>click the map</b> to place your platform company. Every SBA borrower in that industry within the radius is an add-on candidate.</div>
+    <div>
+      <h2>Roll-up examples</h2>
+      <div class="examples" id="examples"></div>
+    </div>
+    <div class="filters">
+      <label for="s-ind">Industry <select id="s-ind"></select></label>
+      <div class="row">
+        <label for="s-rad">Radius from platform
+          <select id="s-rad"><option value="10">10 miles</option><option value="25">25 miles</option><option value="50" selected>50 miles</option><option value="75">75 miles</option></select></label>
+        <label for="s-sort">Sort by
+          <select id="s-sort"><option value="dist">Distance</option><option value="first">Longest-held first</option><option value="amt">Largest loan</option></select></label>
+      </div>
+      <label class="check" for="s-lt"><input type="checkbox" id="s-lt"> Only long-time owners (first SBA loan 10+ years ago)</label>
+      <label class="check" for="s-co"><input type="checkbox" id="s-co" checked> Hide businesses with a charged-off loan</label>
+    </div>
+    <div class="row" style="align-items:center">
+      <div class="count" id="s-count"></div>
+      <div style="text-align:right"><button class="btn" id="s-csv" type="button">Export CSV</button></div>
+    </div>
+    <div class="legend"><span><span class="flag lt">Long-time</span>first SBA loan 10+ yrs ago</span><span><span class="flag acq">Changed hands</span>bought with an SBA loan</span><span><span class="flag rep">Repeat</span>2+ SBA loans</span></div>
+    <div id="s-list"></div>
   </section>
 
-  <div class="foot">Source: U.S. Small Business Administration, 7(a) &amp; 504 FOIA data (public). Loans are placed at their ZIP code, not the exact street address. Canceled and unfunded loans are excluded. Built by Wilson Selzer · <a href="https://github.com/WilsonSelzer/kc-sba-loan-map">code on GitHub</a></div>
+  <section class="tab" id="p-industries" role="tabpanel" aria-labelledby="t-industries">
+    <div class="callout">Many small, SBA-financed operators in one industry means a fragmented market, which is where roll-ups work. Long-time owners are a rough proxy for succession-driven sellers. Click any row to screen it.</div>
+    <label for="i-q">Find an industry <input type="search" id="i-q" placeholder="e.g. dental, HVAC, landscaping"></label>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th data-k="industry">Industry</th><th data-k="operators" aria-sort="descending">Operators</th>
+          <th data-k="longtime_ops">Long-time</th><th data-k="acq">Acquired</th><th data-k="median">Median loan</th>
+        </tr></thead>
+        <tbody id="i-body"></tbody>
+      </table>
+    </div>
+    <div class="mini">Operators = distinct businesses with an SBA loan since FY2010. Acquired = loans SBA flagged as a change of ownership (tracked since FY2018).</div>
+  </section>
+
+  <section class="tab" id="p-acq" role="tabpanel" aria-labelledby="t-acq">
+    <div class="callout">Loans used to buy an existing business. This is how search funds and small buyers finance deals, so it shows what's trading in KC and at roughly what size. The map shows acquisitions only while this tab is open.</div>
+    <div>
+      <h2>Acquisitions per year</h2>
+      <div class="bars" id="a-bars"></div>
+      <div class="mini" style="margin-top:6px">Right column: median loan size. SBA loans usually cover most of the purchase price, so this is a rough read on deal size, not a valuation.</div>
+    </div>
+    <div>
+      <h2>Most-acquired industries</h2>
+      <ul class="list" id="a-ind"></ul>
+    </div>
+    <div>
+      <h2>Lenders financing acquisitions</h2>
+      <ul class="list" id="a-lend"></ul>
+    </div>
+  </section>
+
+  <div class="foot">Source: U.S. Small Business Administration, 7(a) &amp; 504 FOIA data (public). Loans are placed at their ZIP code, not the exact street address, so distances are approximate. Canceled and unfunded loans are excluded. Built by Wilson Selzer · <a href="https://github.com/WilsonSelzer/kc-sba-loan-map">code and run log on GitHub</a></div>
 </aside>
 <div id="map" role="region" aria-label="Map of KC SBA loans"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-const money = v => v >= 1e9 ? `$${(v/1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : `$${Math.round(v/1e3)}K`;
+const money = v => v >= 1e9 ? `$${(v/1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : `$${Math.round((v||0)/1e3)}K`;
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ACQ = "Change of Ownership";
+const SHOWCASE = [["238220", "HVAC & plumbing"], ["621210", "Dental"], ["541940", "Veterinary"]];
 
-const map = L.map("map", { preferCanvas: true, zoomControl: true }).setView([39.03, -94.58], 10);
+const map = L.map("map", { preferCanvas: true }).setView([39.03, -94.58], 10);
 L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
-  maxZoom: 16,
-  attribution: "Tiles &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors"
+  maxZoom: 16, attribution: "Tiles &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors"
 }).addTo(map);
 L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}", { maxZoom: 16 }).addTo(map);
 const layer = L.layerGroup().addTo(map);
 const markers = new Map();
-let loans = [], newIds = new Set();
+let loans = [], summary = null, newIds = new Set(), tab = "overview";
+let platform = L.latLng(38.9822, -94.6708);   // Overland Park
+let platformMarker = null, radiusCircle = null, screenRows = [];
+
+const links = (name, city, state) => {
+  const q = encodeURIComponent(`${name} ${city} ${state}`);
+  return `<a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">Google</a>
+          <a href="https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(name)}" target="_blank" rel="noopener">LinkedIn</a>
+          <a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Maps</a>`;
+};
 
 function card(l) {
-  const acq = l.age === "Change of Ownership";
-  return `<div class="pop"><div class="n">${esc(l.name)}</div>
-    ${acq ? '<span class="tag">Business acquisition</span>' : ""}${newIds.has(l.id) ? ' <span class="tag">New this quarter</span>' : ""}
-    <div>${esc(l.street)}, ${esc(l.city)}, ${esc(l.state)} ${esc(l.zip)}</div>
-    <dl><dt>Loan</dt><dd>${money(l.amount)} · ${esc(l.prog)}</dd>
-    <dt>Approved</dt><dd>${esc(l.date)}</dd>
-    <dt>Industry</dt><dd>${esc(l.industry)}</dd>
-    ${l.franchise ? `<dt>Franchise</dt><dd>${esc(l.franchise)}</dd>` : ""}
-    <dt>Lender</dt><dd>${esc(l.lender)}</dd>
-    <dt>Business</dt><dd>${esc(l.age)}</dd>
-    <dt>Jobs</dt><dd>${l.jobs}</dd>
-    <dt>Status</dt><dd>${esc(l.status)}</dd></dl></div>`;
+  const flags = [l.longtime && '<span class="flag lt">Long-time</span>', l.age === ACQ && '<span class="flag acq">Acquisition loan</span>',
+    l.nloans > 1 && `<span class="flag rep">${l.nloans} SBA loans</span>`, newIds.has(l.id) && '<span class="flag acq">New this quarter</span>'].filter(Boolean).join("");
+  return `<div class="pop"><div class="n">${esc(l.name)}</div>${flags}
+    <div style="margin-top:4px">${esc(l.street)}, ${esc(l.city)}, ${esc(l.state)} ${esc(l.zip)}</div>
+    <dl><dt>Loan</dt><dd>${money(l.amount)} · ${esc(l.prog)}</dd><dt>Approved</dt><dd>${esc(l.date)}</dd>
+    <dt>Industry</dt><dd>${esc(l.industry)}</dd>${l.franchise ? `<dt>Franchise</dt><dd>${esc(l.franchise)}</dd>` : ""}
+    <dt>Lender</dt><dd>${esc(l.lender)}</dd><dt>Business</dt><dd>${esc(l.age)}</dd>
+    <dt>First SBA loan</dt><dd>${esc(l.first)}</dd><dt>Jobs</dt><dd>${l.jobs}</dd><dt>Status</dt><dd>${esc(l.status)}</dd></dl>
+    <div class="links">${links(l.name, l.city, l.state)}</div></div>`;
 }
+const radius = a => Math.max(3, Math.min(16, Math.sqrt((a || 0) / 1e6) * 6));
+function dot(l, opts = {}) {
+  const acq = l.age === ACQ;
+  const m = L.circleMarker([l.lat, l.lng], Object.assign({ radius: radius(l.amount), weight: 1, color: "#fff",
+    fillColor: acq ? "#d9480f" : "#1f5fbf", fillOpacity: acq ? .85 : .55 }, opts)).bindPopup(() => card(l));
+  m.addTo(layer); markers.set(l.id, m); return m;
+}
+function clearMap() { layer.clearLayers(); markers.clear();
+  if (platformMarker) { map.removeLayer(platformMarker); platformMarker = null; }
+  if (radiusCircle) { map.removeLayer(radiusCircle); radiusCircle = null; } }
 
-function radius(a) { return Math.max(3, Math.min(16, Math.sqrt((a || 0) / 1e6) * 6)); }
-
-function render() {
-  const f = {
-    acq: $("acq").checked, sector: $("sector").value, size: +$("size").value, fy: $("fy").value,
-    status: $("status").value, prog: $("prog").value, q: $("q").value.trim().toLowerCase()
-  };
-  layer.clearLayers(); markers.clear();
+/* ---------- Overview ---------- */
+function renderOverview() {
+  clearMap();
+  const f = { acq: $("acq").checked, sector: $("sector").value, size: +$("size").value, fy: $("fy").value,
+    status: $("status").value, prog: $("prog").value, q: $("q").value.trim().toLowerCase() };
   let n = 0, dollars = 0;
   for (const l of loans) {
-    if (f.acq && l.age !== "Change of Ownership") continue;
+    if (f.acq && l.age !== ACQ) continue;
     if (f.sector && l.sector !== f.sector) continue;
     if ((l.amount || 0) < f.size) continue;
-    if (f.fy && String(l.fy) !== f.fy) continue;
+    if (f.fy === "recent" ? l.fy < 2020 : f.fy && String(l.fy) !== f.fy) continue;
     if (f.status && l.status !== f.status) continue;
     if (f.prog && l.prog !== f.prog) continue;
     if (f.q && !`${l.name} ${l.lender} ${l.franchise || ""} ${l.industry}`.toLowerCase().includes(f.q)) continue;
-    const acq = l.age === "Change of Ownership";
-    const m = L.circleMarker([l.lat, l.lng], {
-      radius: radius(l.amount), weight: 1, color: "#fff",
-      fillColor: acq ? "#d9480f" : "#1f5fbf", fillOpacity: acq ? .85 : .55
-    }).bindPopup(() => card(l));
-    m.addTo(layer); markers.set(l.id, m);
-    n++; dollars += l.amount || 0;
+    dot(l); n++; dollars += l.amount || 0;
   }
   $("count").textContent = `Showing ${n.toLocaleString()} loans · ${money(dollars)}`;
 }
 
-function focus(id) {
+/* ---------- Screener ---------- */
+const miles = (a, b) => a.distanceTo(b) / 1609.34;
+function businesses(naics) {
+  const by = new Map();
+  for (const l of loans) {
+    if (l.naics !== naics) continue;
+    const b = by.get(l.bkey) || { key: l.bkey, loans: [], latest: l };
+    b.loans.push(l);
+    if ((l.date || "") > (b.latest.date || "")) b.latest = l;
+    by.set(l.bkey, b);
+  }
+  return [...by.values()].map(b => {
+    const L0 = b.latest;
+    return { key: b.key, name: L0.name, street: L0.street, city: L0.city, state: L0.state, zip: L0.zip,
+      lat: L0.lat, lng: L0.lng, industry: L0.industry, first: L0.first, nloans: b.loans.length,
+      latest_amount: L0.amount, latest_date: L0.date, lender: L0.lender, jobs: L0.jobs,
+      longtime: L0.longtime, acquired: b.loans.some(x => x.age === ACQ),
+      chargedoff: b.loans.some(x => x.status === "Charged off"), loan: L0 };
+  });
+}
+function renderScreener() {
+  clearMap();
+  const naics = $("s-ind").value, rad = +$("s-rad").value;
+  platformMarker = L.marker(platform, { icon: L.divIcon({ className: "", html: '<div class="platform-icon">Platform</div>', iconAnchor: [30, 12] }), keyboard: false }).addTo(map);
+  radiusCircle = L.circle(platform, { radius: rad * 1609.34, color: "#15202e", weight: 1.5, dashArray: "5 5", fillOpacity: .03, interactive: false }).addTo(map);
+  let rows = businesses(naics).map(b => Object.assign(b, { dist: miles(platform, L.latLng(b.lat, b.lng)) }))
+    .filter(b => b.dist <= rad);
+  if ($("s-lt").checked) rows = rows.filter(b => b.longtime);
+  if ($("s-co").checked) rows = rows.filter(b => !b.chargedoff);
+  const sort = $("s-sort").value;
+  rows.sort(sort === "first" ? (a, b) => (a.first || "").localeCompare(b.first || "") :
+            sort === "amt" ? (a, b) => (b.latest_amount || 0) - (a.latest_amount || 0) : (a, b) => a.dist - b.dist);
+  screenRows = rows;
+  for (const b of rows) dot(b.loan, { fillColor: b.longtime ? "#9a6b00" : "#1f5fbf", fillOpacity: .8, radius: 7 });
+  const ind = $("s-ind").selectedOptions[0]?.dataset.label || "";
+  $("s-count").textContent = `${rows.length} ${rows.length === 1 ? "target" : "targets"} · ${rows.filter(r => r.longtime).length} long-time owners`;
+  $("s-list").innerHTML = rows.length ? rows.slice(0, 200).map(b => `
+    <div class="tgt">
+      <div class="top"><button class="nm" type="button" data-id="${b.loan.id}">${esc(b.name)}</button><span class="count">${b.dist.toFixed(1)} mi</span></div>
+      <div>${b.longtime ? '<span class="flag lt">Long-time</span>' : ""}${b.acquired ? '<span class="flag acq">Changed hands</span>' : ""}${b.nloans > 1 ? `<span class="flag rep">Repeat · ${b.nloans}</span>` : ""}${b.chargedoff ? '<span class="flag co">Charged off</span>' : ""}</div>
+      <div class="meta">${esc(b.city)}, ${esc(b.state)} · first SBA loan ${esc((b.first || "").slice(0, 4))} · latest ${money(b.latest_amount)} (${esc((b.latest_date || "").slice(0, 4))}) · ${b.jobs} jobs</div>
+      <div class="links">${links(b.name, b.city, b.state)}</div>
+    </div>`).join("") + (rows.length > 200 ? `<div class="mini">Showing the first 200. Export CSV for all ${rows.length}.</div>` : "")
+    : `<div class="mini">No ${esc(ind)} businesses within ${rad} miles. Widen the radius or move the platform.</div>`;
+  $("s-list").querySelectorAll(".nm").forEach(b => b.addEventListener("click", () => {
+    const m = markers.get(b.dataset.id); if (!m) return; map.flyTo(m.getLatLng(), 13, { duration: .5 }); setTimeout(() => m.openPopup(), 550);
+  }));
+}
+function exportCsv() {
+  const cols = ["name","street","city","state","zip","industry","distance_mi","long_time_owner","first_sba_loan","sba_loans","changed_hands","latest_loan","latest_loan_date","lender","jobs","google","linkedin"];
+  const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = [cols.join(",")].concat(screenRows.map(b => [b.name, b.street, b.city, b.state, b.zip, b.industry, b.dist.toFixed(1),
+    b.longtime ? "Y" : "N", b.first, b.nloans, b.acquired ? "Y" : "N", b.latest_amount, b.latest_date, b.lender, b.jobs,
+    `https://www.google.com/search?q=${encodeURIComponent(`${b.name} ${b.city} ${b.state}`)}`,
+    `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(b.name)}`].map(q).join(",")));
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `kc-addon-targets-${$("s-ind").value}-${$("s-rad").value}mi.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ---------- Industries ---------- */
+let iSort = { k: "operators", dir: -1 };
+function renderIndustries() {
+  const q = $("i-q").value.trim().toLowerCase();
+  const show = new Set(SHOWCASE.map(s => s[0]));
+  let rows = summary.industries.filter(g => g.operators >= 3 && (!q || g.industry.toLowerCase().includes(q)));
+  rows.sort((a, b) => iSort.k === "industry" ? iSort.dir * a.industry.localeCompare(b.industry) : iSort.dir * (a[iSort.k] - b[iSort.k]));
+  $("i-body").innerHTML = rows.slice(0, 150).map(g => `<tr data-n="${g.naics}" class="${show.has(g.naics) ? "show" : ""}" tabindex="0">
+    <td>${esc(g.industry)}</td><td>${g.operators}</td><td>${g.longtime_ops}</td><td>${g.acq}</td><td>${money(g.median)}</td></tr>`).join("");
+  $("i-body").querySelectorAll("tr").forEach(tr => {
+    const go = () => { $("s-ind").value = tr.dataset.n; setTab("screener"); };
+    tr.addEventListener("click", go); tr.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+  });
+  document.querySelectorAll("th").forEach(th => th.toggleAttribute("aria-sort", th.dataset.k === iSort.k));
+}
+function renderIndustryMap() {
+  clearMap();
+  for (const l of loans) if (l.fy >= 2020) dot(l, { fillOpacity: .35 });
+}
+
+/* ---------- Acquisitions ---------- */
+function renderAcq() {
+  const A = summary.acquisitions, max = Math.max(...A.by_year.map(y => y.count));
+  $("a-bars").innerHTML = A.by_year.map(y => `<div class="bar"><span class="y">FY${String(y.fy).slice(2)}</span>
+    <span class="track"><span class="fill" style="display:block;width:${(y.count / max * 100).toFixed(1)}%"></span></span>
+    <span class="v">${y.count} · ${money(y.median)}</span></div>`).join("");
+  const top = summary.industries.filter(g => g.acq > 0).sort((a, b) => b.acq - a.acq).slice(0, 8);
+  $("a-ind").innerHTML = top.map(g => `<li><button class="item" type="button" data-n="${g.naics}"><span>${esc(g.industry)}</span>
+    <span class="amt">${g.acq} deals</span><span class="sub">${g.operators} operators in KC · ${money(g.acq_dollars)} financed</span></button></li>`).join("");
+  $("a-ind").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { $("s-ind").value = b.dataset.n; setTab("screener"); }));
+  $("a-lend").innerHTML = A.lenders.slice(0, 8).map(d => `<li><div class="item" style="cursor:default"><span>${esc(d.lender)}</span>
+    <span class="amt">${d.count} · ${money(d.dollars)}</span><span class="sub">Most often: ${esc(d.top_sector)}</span></div></li>`).join("");
+  clearMap();
+  for (const l of loans) if (l.age === ACQ) dot(l);
+}
+
+/* ---------- Tabs ---------- */
+function setTab(name) {
+  tab = name;
+  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", String(b.id === `t-${name}`)));
+  document.querySelectorAll(".tab").forEach(p => p.classList.toggle("on", p.id === `p-${name}` || (name === "acq" && p.id === "p-acq")));
+  if (name === "overview") renderOverview();
+  if (name === "screener") { renderScreener(); map.flyTo(platform, 9, { duration: .5 }); }
+  if (name === "industries") { renderIndustries(); renderIndustryMap(); }
+  if (name === "acq") renderAcq();
+}
+document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => setTab(b.id.slice(2))));
+map.on("click", e => { if (tab === "screener") { platform = e.latlng; renderScreener(); } });
+
+function focusLoan(id) {
   const l = loans.find(x => x.id === id); if (!l) return;
-  $("acq").checked = false; ["sector","fy","status","prog"].forEach(k => $(k).value = ""); $("size").value = "0"; $("q").value = "";
-  render();
+  $("acq").checked = false; ["sector","status","prog","q"].forEach(k => $(k).value = ""); $("size").value = "0"; $("fy").value = "";
+  setTab("overview");
   map.flyTo([l.lat, l.lng], 14, { duration: .6 });
   setTimeout(() => markers.get(id)?.openPopup(), 650);
 }
 
 Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/meta.json"].map(u => fetch(u).then(r => r.json())))
 .then(([L1, ch, sum, meta]) => {
-  loans = L1; newIds = new Set(ch.new_ids || []);
+  loans = L1; summary = sum; newIds = new Set(ch.new_ids || []);
   $("kpis").innerHTML = `
     <div class="kpi"><b>${sum.loans.toLocaleString()}</b><span>loans since FY2020</span></div>
-    <div class="kpi"><b>${money(sum.dollars)}</b><span>total approved</span></div>
+    <div class="kpi"><b>${money(sum.dollars)}</b><span>approved since FY2020</span></div>
     <div class="kpi acq"><b>${sum.acquisitions.toLocaleString()}</b><span>business acquisitions</span></div>
-    <div class="kpi acq"><b>${money(sum.acq_dollars)}</b><span>acquisition financing</span></div>`;
+    <div class="kpi"><b>${sum.operators.toLocaleString()}</b><span>KC businesses with an SBA loan since FY2010</span></div>`;
 
   const byId = new Map(loans.map(l => [l.id, l]));
-  const acq = (ch.new_acquisitions || []).map(id => byId.get(id)).filter(Boolean).sort((a,b) => b.amount - a.amount);
+  const acq = (ch.new_acquisitions || []).map(id => byId.get(id)).filter(Boolean).sort((a, b) => b.amount - a.amount);
   const lenders = (ch.top_lenders || []).slice(0, 3).map(([n, v]) => `${esc(n)} (${money(v)})`).join(", ");
   const sectors = (ch.top_sectors || []).slice(0, 3).map(([n, c]) => `${esc(n)} (${c})`).join(", ");
   $("feed").innerHTML = `
-    <div class="head">SBA data as of <b>${esc(ch.asof)}</b>: <b>${ch.new_loans}</b> new KC loans worth <b>${money(ch.new_dollars)}</b>, including <b>${acq.length}</b> business acquisitions.</div>
-    ${acq.length ? `<ul>${acq.map(l => `<li><button type="button" data-id="${l.id}"><span>${esc(l.name)}</span><span class="amt">${money(l.amount)}</span><span class="sub">${esc(l.industry)} · ${esc(l.city)}</span></button></li>`).join("")}</ul>` : ""}
+    <div class="lead">SBA data as of <b>${esc(ch.asof)}</b>: <b>${ch.new_loans}</b> new KC loans worth <b>${money(ch.new_dollars)}</b>, including <b>${acq.length}</b> business acquisitions.</div>
+    ${acq.length ? `<ul class="list scroll">${acq.map(l => `<li><button class="item" type="button" data-id="${l.id}"><span>${esc(l.name)}</span><span class="amt">${money(l.amount)}</span><span class="sub">${esc(l.industry)} · ${esc(l.city)}</span></button></li>`).join("")}</ul>` : ""}
     <div class="mini"><b>Most active lenders:</b> ${lenders || "none"}<br><b>Busiest industries:</b> ${sectors || "none"}
     ${(ch.charge_offs || []).length ? `<br><b>New charge-offs:</b> ${ch.charge_offs.length}` : ""}</div>
     <div class="mini">Compared with ${esc(ch.compared_to || "the previous snapshot")}.</div>`;
-  $("feed").querySelectorAll("button[data-id]").forEach(b => b.addEventListener("click", () => focus(b.dataset.id)));
+  $("feed").querySelectorAll("button[data-id]").forEach(b => b.addEventListener("click", () => focusLoan(b.dataset.id)));
 
   $("runs").innerHTML = (meta.runs || []).slice(0, 6).map(r =>
     `<div>${esc(r.ran_at.replace("T", " ").replace("+00:00", " UTC"))} · ${esc(r.result)}${r.new_loans != null ? ` · ${r.new_loans} new` : ""}</div>`).join("")
@@ -212,11 +425,29 @@ Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/
 
   const opts = (id, vals) => vals.forEach(v => $(id).insertAdjacentHTML("beforeend", `<option>${esc(v)}</option>`));
   opts("sector", Object.keys(sum.by_sector).filter(s => s !== "Other").sort());
-  opts("fy", [...new Set(loans.map(l => l.fy))].sort((a,b) => b - a));
+  opts("fy", [...new Set(loans.map(l => l.fy))].sort((a, b) => b - a));
   opts("status", [...new Set(loans.map(l => l.status))].sort());
-  ["acq","sector","size","fy","status","prog"].forEach(id => $(id).addEventListener("change", render));
-  $("q").addEventListener("input", render);
-  render();
+
+  const inds = sum.industries.filter(g => g.operators >= 3);
+  const showIds = new Set(SHOWCASE.map(s => s[0]));
+  $("s-ind").innerHTML = `<optgroup label="Roll-up examples">${SHOWCASE.map(([n, lab]) => {
+      const g = sum.industries.find(x => x.naics === n); return g ? `<option value="${n}" data-label="${esc(lab)}">${esc(g.industry)} (${g.operators})</option>` : ""; }).join("")}</optgroup>
+    <optgroup label="All industries, most operators first">${inds.filter(g => !showIds.has(g.naics)).map(g =>
+      `<option value="${g.naics}" data-label="${esc(g.industry)}">${esc(g.industry)} (${g.operators})</option>`).join("")}</optgroup>`;
+  $("examples").innerHTML = SHOWCASE.map(([n, lab]) => `<button class="chip" type="button" data-n="${n}">${esc(lab)} add-ons near Overland Park</button>`).join("");
+  $("examples").querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => {
+    $("s-ind").value = c.dataset.n; platform = L.latLng(38.9822, -94.6708); $("s-rad").value = "50"; setTab("screener"); }));
+
+  ["acq","sector","size","fy","status","prog"].forEach(id => $(id).addEventListener("change", renderOverview));
+  $("q").addEventListener("input", renderOverview);
+  ["s-ind","s-rad","s-sort","s-lt","s-co"].forEach(id => $(id).addEventListener("change", renderScreener));
+  $("s-csv").addEventListener("click", exportCsv);
+  $("i-q").addEventListener("input", renderIndustries);
+  document.querySelectorAll("th").forEach(th => th.addEventListener("click", () => {
+    iSort = { k: th.dataset.k, dir: iSort.k === th.dataset.k ? -iSort.dir : (th.dataset.k === "industry" ? 1 : -1) }; renderIndustries(); }));
+
+  const start = location.hash.slice(1);
+  setTab(["screener","industries","acq"].includes(start) ? start : "overview");
 })
 .catch(e => { $("feed").innerHTML = `<div class="mini">Couldn't load the data files (${esc(e.message)}). Open this page from GitHub Pages or a local web server.</div>`; });
 </script>
