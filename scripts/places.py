@@ -14,6 +14,8 @@ BBOX = "-95.10,38.55,-94.05,39.45"          # KC metro: Leavenworth to Lee's Sum
 RAW = os.path.join(ROOT, "kc_places.geojsonseq")
 
 # Overture category -> roll-up category. Matched on whole category names first, then on keywords.
+EXCLUDE = ["pet_", "supplier", "wholesale", "school_district", "insurance_company", "dealer"]
+
 CATEGORY_RULES = [
     ("hvac", ["hvac", "heating_and_air", "air_conditioning", "plumb", "water_heater", "furnace"]),
     ("elec", ["electrician", "electrical_contractor", "electrical_service", "electrical_repair", "lighting_contractor"]),
@@ -39,6 +41,8 @@ def log(m):
 
 def category_for(cats):
     cats = [c for c in cats if c]
+    if cats and any(x in cats[0] for x in EXCLUDE):
+        return None
     for cid, keys in CATEGORY_RULES:
         if any(any(k in c for k in keys) for c in cats[:1]):     # primary category decides first
             return cid
@@ -105,7 +109,7 @@ def parse():
             if seen == 1:
                 log("sample property keys: " + ", ".join(sorted(p.keys())))
             cid = category_for([prim] + alts)
-            if not cid or (p.get("confidence") or 0) < 0.5:
+            if not cid or (p.get("confidence") or 0) < 0.5 or str(p.get("operating_status") or "").lower() in ("closed", "permanently_closed", "temporarily_closed"):
                 continue
             lng, lat = feat["geometry"]["coordinates"][:2]
             name = first(p, "names", "primary")
@@ -165,6 +169,19 @@ def main():
     brand_counts = Counter(p["brand"] or norm(p["name"]) for p in places)
     for p in places:
         p["chain"] = brand_counts[p["brand"] or norm(p["name"])] >= 5
+    # one row per business: merge same-name listings in the same category, keep the most complete one
+    merged = {}
+    for p in sorted(places, key=lambda p: (-bool(p["phone"]), -bool(p["website"]), -p["conf"])):
+        k = (p["cat"], norm(p["name"]))
+        if k in merged:
+            merged[k]["locations"] += 1
+        else:
+            p["locations"] = 1
+            merged[k] = p
+    places = list(merged.values())
+    for p in places:
+        for f in ("brand", "conf"):
+            p.pop(f, None)
     match_sba(places)
     by_cat = Counter(p["cat"] for p in places if not p["chain"])
     log("independents by category: " + ", ".join(f"{k} {v}" for k, v in by_cat.most_common()))
