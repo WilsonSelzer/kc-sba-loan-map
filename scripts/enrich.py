@@ -23,7 +23,7 @@ TIME_BUDGET = 60 * 60 * 2          # stop scanning after 2 hours; the rest picks
 
 # Platforms and PE-backed groups active in these categories. A match is a strong ownership signal.
 PLATFORMS = ["Wrench Group", "Apex Service Partners", "Sila Services", "Turnpoint Services", "Service Experts", "Authority Brands",
-    "Neighborly", "Leap Partners", "Heartland Home Services", "Redwood Services", "Seacoast Service Partners", "Frontdoor",
+    "Neighborly", "Leap Partners", "Heartland Home Services", "Redwood Services", "Seacoast Service Partners", 
     "Heartland Dental", "Pacific Dental", "Smile Doctors", "Dental Care Alliance", "MB2 Dental", "Mortenson Dental", "Specialized Dental",
     "Smile Brands", "Great Expressions", "Western Dental", "Dental365", "D4C Dental", "Aspen Dental", "Sonrava", "Benevis",
     "National Veterinary Associates", "NVA", "PetVet Care Centers", "Thrive Pet Healthcare", "Mission Pet Health", "Southern Veterinary Partners",
@@ -32,12 +32,12 @@ PLATFORMS = ["Wrench Group", "Apex Service Partners", "Sila Services", "Turnpoin
     "Rollins", "Rentokil", "Anticimex", "Senske", "BrightView", "Caliber", "Crash Champions", "Classic Collision", "Driven Brands",
     "Learning Care Group", "Spring Education", "BrightPath", "Kids R Kids", "Accelerate Care", "Help at Home", "Addus", "Amedisys",
     "Aveanna", "BrightSpring", "Acrisure", "Hub International", "Alera Group", "Patriot Growth", "Higginbotham", "World Insurance Associates",
-    "Baldwin Group", "Inszone", "Keystone Agency Partners", "Smart Choice", "Choice Financial", "Citrin Cooperman", "Aprio", "Baker Tilly",
+    "Baldwin Group", "Inszone", "Keystone Agency Partners", "Citrin Cooperman", "Aprio", "Baker Tilly",
     "CBIZ", "Creative Planning", "Ascend Partners", "Elevate Tax", "Turnpoint"]
 OWNERSHIP_PATTERNS = [
     r"\b(?:proud(?:ly)?\s+)?part of (?:the\s+)?([A-Z][\w&.'\- ]{2,40}?)\s+family(?: of (?:companies|brands|practices))?",
     r"\ba\s+([A-Z][\w&.'\-]+(?:\s+[A-Z][\w&.'\-]+){0,4})\s+(?:company|brand|portfolio company|affiliate|partner practice)\b",
-    r"\b(?:acquired by|backed by|in partnership with|partnered with|joined)\s+([A-Z][\w&.'\-]+(?:\s+[A-Z][\w&.'\-]+){0,4})",
+    r"\b(?:acquired by|backed by|joined the)\s+([A-Z][\w&.'\-]+(?:\s+[A-Z][\w&.'\-]+){0,4})",
     r"\bportfolio company of\s+([A-Z][\w&.'\-]+(?:\s+[A-Z][\w&.'\-]+){0,4})",
 ]
 OWNERSHIP_STOP = re.compile(r"\b(BBB|Better Business|Chamber|Association|Society|Google|Facebook|Yelp|Angi|HomeAdvisor|Nextdoor|Carrier|Trane|Lennox|"
@@ -242,6 +242,7 @@ def main():
     json.dump(cache, open(CACHE_PATH, "w"), separators=(",", ":"))          # save progress before the slower steps
 
     # 2. domain registration year (permanent once found), capped at 30 minutes per run
+    cache["domains"] = {d: y for d, y in cache["domains"].items() if isinstance(y, int)}
     todo = [d for d in targets if d not in cache["domains"]]
     log(f"{len(todo)} domains need a registration year")
     rstart = time.time()
@@ -249,7 +250,7 @@ def main():
         futs = {ex.submit(rdap_year, d): d for d in todo}
         for f in cf.as_completed(futs):
             y = f.result()
-            if y != "retry":
+            if isinstance(y, int):
                 cache["domains"][futs[f]] = y
             if len(cache["domains"]) % 500 == 0:
                 log(f"domain years: {len(cache['domains'])}")
@@ -268,6 +269,25 @@ def main():
             cache["f5500"] = {"fetched": date.today().isoformat(), "rows": {f"{k[0]}|{k[1]}": v for k, v in found.items()}}
     f5500 = cache.get("f5500", {}).get("rows", {})
 
+    # keep an ownership hint only when it reads like real ownership, not a partner, carrier, financing offer or the business itself
+    NOT_OWNERS = re.compile(r"insurance|pet insurance|hartville|trupanion|cherry|carecredit|synchrony|greensky|sunbit|prudential|metlife|globe life|"
+                            r"everfi|exos|christian|speedy|swanson|telle|paulhood|bukaty|financial|bank|credit|warranty|lending|lincare", re.I)
+    OWNERSHIP_PHRASE = re.compile(r"part of (?:the )?[\w&.'\- ]{2,40} family|acquired by|portfolio company|joined the [\w&.'\- ]{2,40} family", re.I)
+    def ownership_ok(group, quote, bizname, cat):
+        if not group or NOT_OWNERS.search(group) and group not in PLATFORMS:
+            return False
+        gt = {t for t in norm(group).split() if len(t) > 2}
+        bt = {t for t in norm(bizname).split() if len(t) > 2}
+        if gt and len(gt & bt) / len(gt) >= 0.5:          # the business naming itself
+            return False
+        if group in PLATFORMS:
+            return not (cat == "ins" and group in ("Rollins",))
+        words = group.split()
+        if len(words) > 5 or any(w[0].islower() and w not in ("of", "and", "the", "&") for w in words) or \
+           re.search(r"supply|health\b|sound|alibaba|brand$", group, re.I):
+            return False
+        return bool(OWNERSHIP_PHRASE.search(quote or ""))
+
     # build profiles
     profiles = {}
     for p in places:
@@ -277,9 +297,13 @@ def main():
         d = domain_of(p.get("website") or "")
         if d:
             s = cache["sites"].get(d, {})
-            for k in ("founded", "family", "hiring", "site_year", "group", "group_quote"):
+            for k in ("founded", "family", "hiring", "site_year"):
                 if s.get(k):
                     prof[k] = s[k]
+            if s.get("group") and ownership_ok(s["group"], s.get("group_quote"), p["name"], p["cat"]):
+                prof["group"], prof["group_quote"] = s["group"], s["group_quote"]
+            if p["cat"] == "ins" and prof.get("founded") == 1925 and "COUNTRY" in p["name"].upper():
+                prof.pop("founded")                       # COUNTRY Financial's own founding year on every agent page
             if cache["domains"].get(d):
                 prof["domain_year"] = cache["domains"][d]
         hit = f5500.get(f"{norm(p['name'])}|{p.get('zip')}")
