@@ -21,7 +21,7 @@
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 14px; display: grid; grid-template-columns: 440px 1fr; }
 aside { height: 100%; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--rule); display: flex; flex-direction: column; }
-.head { padding: 18px 20px 0; }
+.head { padding: 18px 20px 4px; }
 .kicker { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
 h1 { font-family: var(--display); font-size: 26px; line-height: 1.05; margin: 4px 0 6px; text-wrap: balance; }
 .lede { margin: 0; color: var(--muted); line-height: 1.5; font-size: 13.5px; }
@@ -58,7 +58,7 @@ select, input[type=search] { font: inherit; color: var(--ink); background: var(-
 .runs { font-family: var(--mono); font-size: 11.5px; color: var(--muted); display: grid; gap: 3px; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
-.foot { font-size: 11.5px; color: var(--muted); line-height: 1.5; padding: 0 20px 20px; margin-top: auto; }
+.foot { font-size: 11px; color: var(--muted); line-height: 1.5; padding: 12px 20px 16px; margin-top: auto; border-top: 1px solid var(--rule); }
 a { color: var(--base); }
 .btn { font: 500 13px var(--body); color: #fff; background: var(--ink); border: 0; border-radius: 4px; padding: 7px 12px; cursor: pointer; }
 .btn.ghost { color: var(--ink); background: var(--panel); border: 1px solid var(--rule); }
@@ -72,7 +72,7 @@ a { color: var(--base); }
 .tgt .nm { all: unset; cursor: pointer; font-weight: 600; font-size: 13.5px; }
 .tgt .nm:hover, .tgt .nm:focus-visible { color: var(--accent); text-decoration: underline; }
 .tgt .meta { font-size: 12px; color: var(--muted); }
-.tgt .links { font-size: 12px; display: flex; gap: 10px; }
+.tgt .links { font-size: 11.5px; display: flex; gap: 10px; }
 .flag { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 3px; margin-right: 4px; }
 .flag.lt { background: #fbf3dc; color: var(--gold); }
 .flag.acq { background: var(--accent-soft); color: var(--accent); }
@@ -92,6 +92,16 @@ tr.show td:first-child { font-weight: 600; }
 .bar .track { height: 14px; background: var(--soft); border-radius: 2px; overflow: hidden; }
 .bar .fill { height: 100%; background: var(--accent); }
 .bar .v { font-family: var(--mono); text-align: right; color: var(--muted); }
+.steps { display: grid; gap: 12px; }
+.steps label { font-size: 13px; color: var(--ink); font-weight: 500; }
+.steps .st { display: flex; align-items: center; }
+.steps .n { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 11px; margin-right: 6px; }
+.results-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-top: 4px; border-top: 1px solid var(--rule); }
+.results-bar .count { font-size: 13px; color: var(--ink); font-family: var(--body); font-weight: 500; }
+details.more { border: 1px solid var(--rule); border-radius: 4px; padding: 8px 10px; }
+details.more summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+details.more[open] summary { margin-bottom: 10px; }
+.hint { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
 #map { height: 100%; }
 .pop { font-family: var(--body); font-size: 13px; min-width: 240px; }
 .pop .n { font-family: var(--display); font-size: 17px; line-height: 1.15; margin-bottom: 4px; }
@@ -110,105 +120,94 @@ tr.show td:first-child { font-weight: 600; }
 <body>
 <aside>
   <div class="head">
-    <div class="kicker">SBA 7(a) &amp; 504 loans · Kansas City metro · FY2010 to date</div>
     <h1>KC Small Business Lending Map</h1>
-    <p class="lede">Every SBA-backed loan to a Kansas City business since 2010, refreshed automatically when SBA publishes new data. Built as a sourcing tool for roll-up and lower middle market PE.</p>
+    <p class="lede">Find add-on targets for a roll-up, using every SBA loan to a Kansas City business since 2010.</p>
   </div>
   <nav role="tablist" aria-label="Views">
-    <button role="tab" id="t-overview" aria-controls="p-overview" aria-selected="true">Overview</button>
-    <button role="tab" id="t-screener" aria-controls="p-screener" aria-selected="false">Add-on screener</button>
+    <button role="tab" id="t-screener" aria-controls="p-screener" aria-selected="true">Find targets</button>
     <button role="tab" id="t-industries" aria-controls="p-industries" aria-selected="false">Industries</button>
-    <button role="tab" id="t-acq" aria-controls="p-acq" aria-selected="false">Acquisitions</button>
+    <button role="tab" id="t-acq" aria-controls="p-acq" aria-selected="false">Deals</button>
+    <button role="tab" id="t-overview" aria-controls="p-overview" aria-selected="false">All loans</button>
   </nav>
 
-  <section class="tab on" id="p-overview" role="tabpanel" aria-labelledby="t-overview">
-    <div class="kpis" id="kpis"></div>
-    <div>
-      <h2>What changed this quarter</h2>
-      <div class="feed" id="feed"><div class="mini">Loading…</div></div>
+  <section class="tab on" id="p-screener" role="tabpanel" aria-labelledby="t-screener">
+    <div class="steps">
+      <label for="s-ind"><span class="st"><span class="n">1</span>Industry</span><select id="s-ind"></select></label>
+      <label for="s-city"><span class="st"><span class="n">2</span>Your platform's location</span><select id="s-city"></select></label>
+      <label for="s-rad"><span class="st"><span class="n">3</span>Search radius
+       </span><select id="s-rad"><option value="10">10 miles</option><option value="25">25 miles</option><option value="50" selected>50 miles</option><option value="75">75 miles</option></select></label>
     </div>
-    <div class="filters">
-      <h2>Filter the map</h2>
-      <label class="check toggle" for="acq"><input type="checkbox" id="acq"> Business acquisitions only</label>
-      <label for="sector">Sector <select id="sector"><option value="">All sectors</option></select></label>
-      <div class="row">
-        <label for="size">Loan size
-          <select id="size"><option value="0">Any size</option><option value="500000">$500K+</option><option value="1000000">$1M+</option><option value="2500000">$2.5M+</option></select></label>
-        <label for="fy">Fiscal year
-          <select id="fy"><option value="recent">FY2020 to date</option><option value="">All since FY2010</option></select></label>
-      </div>
-      <div class="row">
-        <label for="status">Status <select id="status"><option value="">Any status</option></select></label>
-        <label for="prog">Program <select id="prog"><option value="">7(a) and 504</option><option>7(a)</option><option>504</option></select></label>
-      </div>
-      <label for="q">Search business, lender or franchise <input type="search" id="q" placeholder="e.g. HVAC, OakStar, Jersey Mike's"></label>
-      <div class="count" id="count"></div>
-      <div class="legend"><span><i class="dot" style="background:var(--accent)"></i>Acquisition</span><span><i class="dot" style="background:var(--base)"></i>Other loan</span><span>Size = loan amount</span></div>
-    </div>
-    <div>
-      <h2>Pipeline runs</h2>
-      <div class="runs" id="runs"></div>
-    </div>
-  </section>
-
-  <section class="tab" id="p-screener" role="tabpanel" aria-labelledby="t-screener">
-    <div class="callout">Pick an industry, then <b>click the map</b> to place your platform company. Every SBA borrower in that industry within the radius is an add-on candidate.</div>
-    <div>
-      <h2>Roll-up examples</h2>
-      <div class="examples" id="examples"></div>
-    </div>
-    <div class="filters">
-      <label for="s-ind">Industry <select id="s-ind"></select></label>
-      <div class="row">
-        <label for="s-rad">Radius from platform
-          <select id="s-rad"><option value="10">10 miles</option><option value="25">25 miles</option><option value="50" selected>50 miles</option><option value="75">75 miles</option></select></label>
-        <label for="s-sort">Sort by
-          <select id="s-sort"><option value="dist">Distance</option><option value="first">Longest-held first</option><option value="amt">Largest loan</option></select></label>
-      </div>
-      <label class="check" for="s-lt"><input type="checkbox" id="s-lt"> Only long-time owners (first SBA loan 10+ years ago)</label>
-      <label class="check" for="s-co"><input type="checkbox" id="s-co" checked> Hide businesses with a charged-off loan</label>
-    </div>
-    <div class="row" style="align-items:center">
+    <div class="results-bar">
       <div class="count" id="s-count"></div>
-      <div style="text-align:right"><button class="btn" id="s-csv" type="button">Export CSV</button></div>
+      <button class="btn" id="s-csv" type="button">Export CSV</button>
     </div>
-    <div class="legend"><span><span class="flag lt">Long-time</span>first SBA loan 10+ yrs ago</span><span><span class="flag acq">Changed hands</span>bought with an SBA loan</span><span><span class="flag rep">Repeat</span>2+ SBA loans</span></div>
+    <details class="more">
+      <summary>Refine and sort</summary>
+      <div class="filters">
+        <label class="check" for="s-lt"><input type="checkbox" id="s-lt"> Long-time owners only</label>
+        <label class="check" for="s-co"><input type="checkbox" id="s-co" checked> Hide charged-off loans</label>
+        <label for="s-sort">Sort by
+          <select id="s-sort"><option value="dist">Closest first</option><option value="first">Longest-held first</option><option value="amt">Largest loan first</option></select></label>
+      </div>
+    </details>
     <div id="s-list"></div>
   </section>
 
   <section class="tab" id="p-industries" role="tabpanel" aria-labelledby="t-industries">
-    <div class="callout">Many small, SBA-financed operators in one industry means a fragmented market, which is where roll-ups work. Long-time owners are a rough proxy for succession-driven sellers. Click any row to screen it.</div>
-    <label for="i-q">Find an industry <input type="search" id="i-q" placeholder="e.g. dental, HVAC, landscaping"></label>
+    <p class="hint">More small operators means a more fragmented market. Click an industry to find targets in it.</p>
+    <input type="search" id="i-q" placeholder="Search industries, e.g. dental" aria-label="Search industries">
     <div style="overflow-x:auto">
       <table>
         <thead><tr>
-          <th data-k="industry">Industry</th><th data-k="operators" aria-sort="descending">Operators</th>
-          <th data-k="longtime_ops">Long-time</th><th data-k="acq">Acquired</th><th data-k="median">Median loan</th>
+          <th data-k="industry">Industry</th><th data-k="operators" aria-sort="descending" title="Businesses with an SBA loan since FY2010">Businesses</th>
+          <th data-k="longtime_ops" title="First SBA loan 10+ years ago">Long-time</th><th data-k="acq" title="Bought with an SBA loan since FY2018">Sold</th><th data-k="median">Median loan</th>
         </tr></thead>
         <tbody id="i-body"></tbody>
       </table>
     </div>
-    <div class="mini">Operators = distinct businesses with an SBA loan since FY2010. Acquired = loans SBA flagged as a change of ownership (tracked since FY2018).</div>
   </section>
 
   <section class="tab" id="p-acq" role="tabpanel" aria-labelledby="t-acq">
-    <div class="callout">Loans used to buy an existing business. This is how search funds and small buyers finance deals, so it shows what's trading in KC and at roughly what size. The map shows acquisitions only while this tab is open.</div>
+    <p class="hint">Businesses bought with an SBA loan. The map shows only these deals.</p>
     <div>
-      <h2>Acquisitions per year</h2>
+      <h2>Deals per year · median loan</h2>
       <div class="bars" id="a-bars"></div>
-      <div class="mini" style="margin-top:6px">Right column: median loan size. SBA loans usually cover most of the purchase price, so this is a rough read on deal size, not a valuation.</div>
     </div>
     <div>
-      <h2>Most-acquired industries</h2>
+      <h2>Most-sold industries</h2>
       <ul class="list" id="a-ind"></ul>
     </div>
     <div>
-      <h2>Lenders financing acquisitions</h2>
+      <h2>Top deal lenders</h2>
       <ul class="list" id="a-lend"></ul>
     </div>
   </section>
 
-  <div class="foot">Source: U.S. Small Business Administration, 7(a) &amp; 504 FOIA data (public). Loans are placed at their ZIP code, not the exact street address, so distances are approximate. Canceled and unfunded loans are excluded. Built by Wilson Selzer · <a href="https://github.com/WilsonSelzer/kc-sba-loan-map">code and run log on GitHub</a></div>
+  <section class="tab" id="p-overview" role="tabpanel" aria-labelledby="t-overview">
+    <div class="kpis" id="kpis"></div>
+    <div class="feed" id="feed"><div class="mini">Loading…</div></div>
+    <details class="more">
+      <summary>Filter the map</summary>
+      <div class="filters">
+        <label class="check" for="acq"><input type="checkbox" id="acq"> Deals only</label>
+        <label for="sector">Sector <select id="sector"><option value="">All sectors</option></select></label>
+        <div class="row">
+          <label for="size">Loan size
+            <select id="size"><option value="0">Any size</option><option value="500000">$500K+</option><option value="1000000">$1M+</option><option value="2500000">$2.5M+</option></select></label>
+          <label for="fy">Year
+            <select id="fy"><option value="recent">FY2020 to date</option><option value="">All since FY2010</option></select></label>
+        </div>
+        <div class="row">
+          <label for="status">Status <select id="status"><option value="">Any status</option></select></label>
+          <label for="prog">Program <select id="prog"><option value="">7(a) and 504</option><option>7(a)</option><option>504</option></select></label>
+        </div>
+        <input type="search" id="q" placeholder="Search business, lender or franchise" aria-label="Search loans">
+      </div>
+    </details>
+    <div class="count" id="count"></div>
+  </section>
+
+  <div class="foot"><span id="updated"></span> Source: SBA 7(a) &amp; 504 public loan data. Locations are by ZIP code, so distances are approximate. <a href="https://github.com/WilsonSelzer/kc-sba-loan-map">Code and run log</a></div>
 </aside>
 <div id="map" role="region" aria-label="Map of KC SBA loans"></div>
 
@@ -219,6 +218,10 @@ const money = v => v >= 1e9 ? `$${(v/1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v/1e6)
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const ACQ = "Change of Ownership";
 const SHOWCASE = [["238220", "HVAC & plumbing"], ["621210", "Dental"], ["541940", "Veterinary"]];
+const CITIES = [["Overland Park, KS", 38.9822, -94.6708], ["Kansas City, MO (downtown)", 39.0997, -94.5786], ["Kansas City, KS", 39.1142, -94.6275],
+  ["Olathe, KS", 38.8814, -94.8191], ["Lenexa, KS", 38.9536, -94.7336], ["Shawnee, KS", 39.0228, -94.7152], ["Leawood, KS", 38.9667, -94.6169],
+  ["Lee's Summit, MO", 38.9108, -94.3822], ["Independence, MO", 39.0911, -94.4155], ["Blue Springs, MO", 39.0169, -94.2816],
+  ["Liberty, MO", 39.2461, -94.4191], ["North Kansas City, MO", 39.1300, -94.5622]];
 
 const map = L.map("map", { preferCanvas: true }).setView([39.03, -94.58], 10);
 L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
@@ -314,15 +317,15 @@ function renderScreener() {
   screenRows = rows;
   for (const b of rows) dot(b.loan, { fillColor: b.longtime ? "#9a6b00" : "#1f5fbf", fillOpacity: .8, radius: 7 });
   const ind = $("s-ind").selectedOptions[0]?.dataset.label || "";
-  $("s-count").textContent = `${rows.length} ${rows.length === 1 ? "target" : "targets"} · ${rows.filter(r => r.longtime).length} long-time owners`;
+  $("s-count").textContent = `${rows.length} ${rows.length === 1 ? "target" : "targets"} found · ${rows.filter(r => r.longtime).length} long-time owners`;
   $("s-list").innerHTML = rows.length ? rows.slice(0, 200).map(b => `
     <div class="tgt">
       <div class="top"><button class="nm" type="button" data-id="${b.loan.id}">${esc(b.name)}</button><span class="count">${b.dist.toFixed(1)} mi</span></div>
-      <div>${b.longtime ? '<span class="flag lt">Long-time</span>' : ""}${b.acquired ? '<span class="flag acq">Changed hands</span>' : ""}${b.nloans > 1 ? `<span class="flag rep">Repeat · ${b.nloans}</span>` : ""}${b.chargedoff ? '<span class="flag co">Charged off</span>' : ""}</div>
-      <div class="meta">${esc(b.city)}, ${esc(b.state)} · first SBA loan ${esc((b.first || "").slice(0, 4))} · latest ${money(b.latest_amount)} (${esc((b.latest_date || "").slice(0, 4))}) · ${b.jobs} jobs</div>
+      <div class="meta">${esc(b.city)} · since ${esc((b.first || "").slice(0, 4))} · ${money(b.latest_amount)} loan · ${b.jobs} jobs</div>
+      <div>${b.longtime ? '<span class="flag lt" title="First SBA loan 10+ years ago: a rough sign the owner may be ready to sell">Long-time owner</span>' : ""}${b.acquired ? '<span class="flag acq" title="Bought with an SBA loan">Changed hands</span>' : ""}${b.nloans > 1 ? `<span class="flag rep" title="${b.nloans} SBA loans">Repeat borrower</span>` : ""}${b.chargedoff ? '<span class="flag co">Charged off</span>' : ""}</div>
       <div class="links">${links(b.name, b.city, b.state)}</div>
     </div>`).join("") + (rows.length > 200 ? `<div class="mini">Showing the first 200. Export CSV for all ${rows.length}.</div>` : "")
-    : `<div class="mini">No ${esc(ind)} businesses within ${rad} miles. Widen the radius or move the platform.</div>`;
+    : `<div class="mini" style="padding-top:8px">No ${esc(ind)} businesses within ${rad} miles. Try a wider radius.</div>`;
   $("s-list").querySelectorAll(".nm").forEach(b => b.addEventListener("click", () => {
     const m = markers.get(b.dataset.id); if (!m) return; map.flyTo(m.getLatLng(), 13, { duration: .5 }); setTimeout(() => m.openPopup(), 550);
   }));
@@ -384,11 +387,12 @@ function setTab(name) {
   document.querySelectorAll(".tab").forEach(p => p.classList.toggle("on", p.id === `p-${name}` || (name === "acq" && p.id === "p-acq")));
   if (name === "overview") renderOverview();
   if (name === "screener") { renderScreener(); map.flyTo(platform, 9, { duration: .5 }); }
+  $("p-" + (name === "acq" ? "acq" : name)).scrollTop = 0;
   if (name === "industries") { renderIndustries(); renderIndustryMap(); }
   if (name === "acq") renderAcq();
 }
 document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => setTab(b.id.slice(2))));
-map.on("click", e => { if (tab === "screener") { platform = e.latlng; renderScreener(); } });
+map.on("click", e => { if (tab === "screener") { platform = e.latlng; $("s-city").value = "custom"; renderScreener(); } });
 
 function focusLoan(id) {
   const l = loans.find(x => x.id === id); if (!l) return;
@@ -402,26 +406,21 @@ Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/
 .then(([L1, ch, sum, meta]) => {
   loans = L1; summary = sum; newIds = new Set(ch.new_ids || []);
   $("kpis").innerHTML = `
-    <div class="kpi"><b>${sum.loans.toLocaleString()}</b><span>loans since FY2020</span></div>
-    <div class="kpi"><b>${money(sum.dollars)}</b><span>approved since FY2020</span></div>
-    <div class="kpi acq"><b>${sum.acquisitions.toLocaleString()}</b><span>business acquisitions</span></div>
-    <div class="kpi"><b>${sum.operators.toLocaleString()}</b><span>KC businesses with an SBA loan since FY2010</span></div>`;
+    <div class="kpi"><b>${sum.operators.toLocaleString()}</b><span>KC businesses since 2010</span></div>
+    <div class="kpi"><b>${money(sum.dollars)}</b><span>lent since 2020</span></div>`;
 
   const byId = new Map(loans.map(l => [l.id, l]));
   const acq = (ch.new_acquisitions || []).map(id => byId.get(id)).filter(Boolean).sort((a, b) => b.amount - a.amount);
   const lenders = (ch.top_lenders || []).slice(0, 3).map(([n, v]) => `${esc(n)} (${money(v)})`).join(", ");
   const sectors = (ch.top_sectors || []).slice(0, 3).map(([n, c]) => `${esc(n)} (${c})`).join(", ");
   $("feed").innerHTML = `
-    <div class="lead">SBA data as of <b>${esc(ch.asof)}</b>: <b>${ch.new_loans}</b> new KC loans worth <b>${money(ch.new_dollars)}</b>, including <b>${acq.length}</b> business acquisitions.</div>
+    <div class="lead"><b>New this quarter:</b> ${ch.new_loans} loans (${money(ch.new_dollars)}), including ${acq.length} deals.</div>
     ${acq.length ? `<ul class="list scroll">${acq.map(l => `<li><button class="item" type="button" data-id="${l.id}"><span>${esc(l.name)}</span><span class="amt">${money(l.amount)}</span><span class="sub">${esc(l.industry)} · ${esc(l.city)}</span></button></li>`).join("")}</ul>` : ""}
-    <div class="mini"><b>Most active lenders:</b> ${lenders || "none"}<br><b>Busiest industries:</b> ${sectors || "none"}
-    ${(ch.charge_offs || []).length ? `<br><b>New charge-offs:</b> ${ch.charge_offs.length}` : ""}</div>
-    <div class="mini">Compared with ${esc(ch.compared_to || "the previous snapshot")}.</div>`;
+    <div class="mini"><b>Top lenders:</b> ${lenders || "none"}${(ch.charge_offs || []).length ? `<br><b>New charge-offs:</b> ${ch.charge_offs.length}` : ""}</div>`;
   $("feed").querySelectorAll("button[data-id]").forEach(b => b.addEventListener("click", () => focusLoan(b.dataset.id)));
 
-  $("runs").innerHTML = (meta.runs || []).slice(0, 6).map(r =>
-    `<div>${esc(r.ran_at.replace("T", " ").replace("+00:00", " UTC"))} · ${esc(r.result)}${r.new_loans != null ? ` · ${r.new_loans} new` : ""}</div>`).join("")
-    + `<div>Checks SBA monthly; SBA publishes quarterly.</div>`;
+  const last = (meta.runs || [])[0];
+  $("updated").textContent = `Data as of ${ch.asof}; checked monthly${last ? `, last ${last.ran_at.slice(0, 10)}` : ""}.`;
 
   const opts = (id, vals) => vals.forEach(v => $(id).insertAdjacentHTML("beforeend", `<option>${esc(v)}</option>`));
   opts("sector", Object.keys(sum.by_sector).filter(s => s !== "Other").sort());
@@ -430,14 +429,14 @@ Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/
 
   const inds = sum.industries.filter(g => g.operators >= 3);
   const showIds = new Set(SHOWCASE.map(s => s[0]));
-  $("s-ind").innerHTML = `<optgroup label="Roll-up examples">${SHOWCASE.map(([n, lab]) => {
+  $("s-ind").innerHTML = `<optgroup label="Common roll-ups">${SHOWCASE.map(([n, lab]) => {
       const g = sum.industries.find(x => x.naics === n); return g ? `<option value="${n}" data-label="${esc(lab)}">${esc(g.industry)} (${g.operators})</option>` : ""; }).join("")}</optgroup>
-    <optgroup label="All industries, most operators first">${inds.filter(g => !showIds.has(g.naics)).map(g =>
+    <optgroup label="All industries (most businesses first)">${inds.filter(g => !showIds.has(g.naics)).map(g =>
       `<option value="${g.naics}" data-label="${esc(g.industry)}">${esc(g.industry)} (${g.operators})</option>`).join("")}</optgroup>`;
-  $("examples").innerHTML = SHOWCASE.map(([n, lab]) => `<button class="chip" type="button" data-n="${n}">${esc(lab)} add-ons near Overland Park</button>`).join("");
-  $("examples").querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => {
-    $("s-ind").value = c.dataset.n; platform = L.latLng(38.9822, -94.6708); $("s-rad").value = "50"; setTab("screener"); }));
-
+  $("s-city").innerHTML = CITIES.map(([n], i) => `<option value="${i}">${esc(n)}</option>`).join("") + '<option value="custom">Custom (click the map)</option>';
+  $("s-city").addEventListener("change", () => {
+    const c = CITIES[+$("s-city").value]; if (!c) return;
+    platform = L.latLng(c[1], c[2]); renderScreener(); map.flyTo(platform, 9, { duration: .5 }); });
   ["acq","sector","size","fy","status","prog"].forEach(id => $(id).addEventListener("change", renderOverview));
   $("q").addEventListener("input", renderOverview);
   ["s-ind","s-rad","s-sort","s-lt","s-co"].forEach(id => $(id).addEventListener("change", renderScreener));
@@ -447,7 +446,7 @@ Promise.all(["data/loans.json", "data/changes.json", "data/summary.json", "data/
     iSort = { k: th.dataset.k, dir: iSort.k === th.dataset.k ? -iSort.dir : (th.dataset.k === "industry" ? 1 : -1) }; renderIndustries(); }));
 
   const start = location.hash.slice(1);
-  setTab(["screener","industries","acq"].includes(start) ? start : "overview");
+  setTab(["overview","industries","acq"].includes(start) ? start : "screener");
 })
 .catch(e => { $("feed").innerHTML = `<div class="mini">Couldn't load the data files (${esc(e.message)}). Open this page from GitHub Pages or a local web server.</div>`; });
 </script>
